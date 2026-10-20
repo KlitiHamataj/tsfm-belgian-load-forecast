@@ -1,0 +1,8 @@
+name: smoke_test
+models: [timestral-5m]
+covariate_sets: [none]
+contexts_days: [60]
+context_policy: truncate
+device: cpu
+num_threads: null
+seed: 42

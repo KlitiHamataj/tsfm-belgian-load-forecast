@@ -1,0 +1,55 @@
+[project]
+name = "tsbench"
+version = "0.1.0"
+description = "Zero-shot TSFM benchmark on Belgian day-ahead electricity load (CPU only)"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "numpy",
+  "pandas",
+  "pyarrow",
+  "pyyaml",
+  "pydantic>=2",
+  "typer",
+  "tqdm",
+  "holidays",
+  "matplotlib",
+  "scipy",
+  "psutil",
+  "torch",
+  "chronos-forecasting>=2.0",
+  "timestral",
+  "tabulate>=0.10.0",
+]
+
+[dependency-groups]
+dev = ["pytest", "ruff", "mypy", "types-PyYAML", "pandas-stubs"]
+
+[project.scripts]
+bench = "tsbench.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tsbench"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+timestral = { git = "https://github.com/mistralai/timestral.git" }
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

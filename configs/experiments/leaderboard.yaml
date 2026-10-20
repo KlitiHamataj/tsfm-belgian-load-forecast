@@ -1,0 +1,14 @@
+name: leaderboard
+# Main experiment. Adding a model = adapter + card + its id in `tsfm-all`; re-running only computes the new cells.
+models:
+  - group: tsfm-all
+  - group: baselines
+exclude: []
+model_params:
+  chronos-2: {batch_size: 64}
+covariate_sets: [none, full]
+contexts_days: [15, 30, 45, 60, 75, 90]
+context_policy: truncate           # chronos-2 max 8192 steps = 85.3 days; 90d is truncated and recorded
+device: cpu
+num_threads: null
+seed: 42

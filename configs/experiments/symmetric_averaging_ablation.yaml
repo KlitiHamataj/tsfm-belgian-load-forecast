@@ -1,0 +1,12 @@
+name: symmetric_averaging_ablation
+# Does Timestral's mirrored pass (symmetric_averaging, library default = on) buy accuracy for its ~2x CPU cost?
+models:
+  - timestral-209m          # default (on); its 60d cells are shared with the leaderboard
+  - group: ablations        # timestral-209m-nosym (off)
+  - elia_reference          # reference for paired comparisons
+covariate_sets: [none, full]
+contexts_days: [60]
+context_policy: truncate
+device: cpu
+num_threads: null
+seed: 42

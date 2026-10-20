@@ -1,0 +1,9 @@
+name: baselines_only
+models:
+  - group: baselines
+covariate_sets: [none]
+contexts_days: [60]
+context_policy: skip
+device: cpu
+num_threads: null
+seed: 42

@@ -1,0 +1,18 @@
+family: timestral
+publisher: Mistral AI
+release_date: "2026-10-15"
+license: Modified MIT (weights); Apache 2.0 (code)
+source:
+  repo: https://github.com/mistralai/timestral
+  docs: https://docs.mistral.ai/models/timestral-1-0
+max_context: 32768
+max_horizon_per_pass: 1024
+covariates: {past: true, future: true, categorical: true}
+nan_input: true
+outputs:
+  type: quantiles
+  levels: [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99]
+device: [cpu, cuda]
+adapter: tsbench.models.timestral:TimestralAdapter
+adapter_version: 1
+default_params: {batch_size: 16}

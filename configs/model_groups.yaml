@@ -1,0 +1,4 @@
+tsfm-all: [timestral-5m, timestral-28m, timestral-123m, chronos-2, timestral-209m]   # all foundation models, smallest first (run order)
+timestral-all: [timestral-5m, timestral-28m, timestral-123m, timestral-209m]
+baselines: [elia_reference, last_value, daily_persistence, weekly_persistence, seasonal_moving_average, exp_weighted_seasonal]
+ablations: [timestral-209m-nosym]                                                  # explicit variants, not in tsfm-all

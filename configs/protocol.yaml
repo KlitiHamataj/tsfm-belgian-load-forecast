@@ -1,0 +1,28 @@
+# Forecast protocol. Rarely changes; part of every run_id.
+dataset:
+  raw_load: data/load.csv
+  raw_weather: data/weather_cov.csv
+  processed: data/processed/elia_2024_2025.parquet
+  manifest: data/processed/manifest.json
+  raw_load_sha256: e57db353662d0406ff5f75deccbb602b2bf104869e905cc0df0e5083a6f39188
+  raw_weather_sha256: 73f6a63335b20eabcaef141c2fceaf83c860cf51e58571a69ba35709a27d7bfe
+  min_data_date: "2024-01-01"      # Europe/Brussels; nothing earlier may be read
+timezone: Europe/Brussels
+freq_minutes: 15
+issue_time: "18:00"                # local; last observed value is 17:45
+bridge_steps: 24                   # 18:00-23:45, predicted, not scored
+scored_start: "2025-01-01"         # first scored local day (inclusive)
+scored_end: "2025-12-31"           # last scored local day (inclusive)
+reference_model: elia_reference
+primary_comparison_model: chronos-2
+eval_quantiles: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+interval: [0.1, 0.9]               # P10-P90 coverage
+metrics:
+  n_boot: 2000
+  bootstrap_seed: 42
+  elia_reference_wape_pct: 3.036   # acceptance gate
+  elia_reference_tolerance: 0.001
+covariate_sets:
+  none: []
+  calendar: [day_of_week, hour_of_day, be_holidays]
+  full: [day_of_week, hour_of_day, be_holidays, be_temperature]

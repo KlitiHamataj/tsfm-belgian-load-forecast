@@ -1,0 +1,11 @@
+outputs/
+data/processed/
+data/*.csv
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+CLAUDE_CODE_PROMPT.md
+*.log
