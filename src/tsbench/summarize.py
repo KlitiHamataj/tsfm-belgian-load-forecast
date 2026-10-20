@@ -416,7 +416,12 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
     rows = []
     for r in sorted(best.values(), key=lambda r: r["metrics"]["wape_pct"]):
         m = r["metrics"]
-        row = {**_ids(r), f"WAPE {ARROW} %": f"{m['wape_pct']:.2f}", "CI95 %": f"[{m['wape_ci95_lo']:.2f}, {m['wape_ci95_hi']:.2f}]",
+        card = r["card"]
+        flagged = bool(card.weights_date and card.weights_date > protocol.scored_end and card.training_data_disclosed is False)
+        ids_ = _ids(r)
+        if flagged:
+            ids_["model"] = f"{ids_['model']} †"
+        row = {**ids_, f"WAPE {ARROW} %": f"{m['wape_pct']:.2f}", "CI95 %": f"[{m['wape_ci95_lo']:.2f}, {m['wape_ci95_hi']:.2f}]",
                f"median-window WAPE {ARROW} %": f"{m['median_window_wape_pct']:.2f}"}
         if ref is not None and r is not ref:
             d = M.paired_delta(r["windows"], ref["windows"], nb, seed)
@@ -429,6 +434,21 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
         row[f"CRPS≈ {ARROW} MW"] = f"{crps:.0f}" if crps == crps and crps is not None else "-"
         row[f"per window {ARROW} s"] = _fmt_time(r["meta"]["timings"]["per_window_seconds"])
         rows.append(row)
+    ranked = sorted(best.values(), key=lambda r: r["metrics"]["wape_pct"])
+    def _flag(r):
+        c = r["card"]
+        return bool(c.weights_date and c.weights_date > protocol.scored_end and c.training_data_disclosed is False)
+    caveat = ""
+    if any(_flag(r) for r in ranked):
+        caveat = (f"† Weights date after the scored period (> {protocol.scored_end}) and real training data not disclosed: "
+                  "the 2025 Elia data may have been seen in training (see each card's \"Training data and cutoff\").")
+        prim = best.get(protocol.primary_comparison_model)
+        if prim is not None:
+            beats = [r["cell"].model_id for r in ranked if _flag(r) and r["metrics"]["wape_pct"] < prim["metrics"]["wape_pct"]]
+            if beats:
+                caveat += (f" **Contamination caveat: {', '.join(beats)} beat{'s' if len(beats) == 1 else ''} "
+                           f"{protocol.primary_comparison_model} (weights {best[protocol.primary_comparison_model]['card'].weights_date}, "
+                           "training data disclosed, no Belgian load listed) here; this ranking is not contamination-safe.**")
     gate = ""
     if ref is not None:
         w, tgt, tol = ref["metrics"]["wape_pct"], protocol.metrics.elia_reference_wape_pct, protocol.metrics.elia_reference_tolerance
@@ -444,6 +464,7 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
         "",
         _md(pd.DataFrame(rows)),
         "",
+        *([caveat, ""] if caveat else []),
         gate + (f" {len(skipped)} configured cell(s) not aggregated." if skipped else ""),
         README_END,
     ])

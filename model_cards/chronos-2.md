@@ -6,6 +6,8 @@ publisher: Amazon
 release_date: "2025-10"
 license: Apache 2.0
 source: {repo: https://github.com/amazon-science/chronos-forecasting, docs: https://github.com/amazon-science/chronos-forecasting, hf_id: amazon/chronos-2}
+weights_date: "2025-10-30"
+training_data_disclosed: true
 revision: 29ec3766d36d6f73f0696f85560a422f50e8498c
 params: ~120M
 max_context: 8192
@@ -43,6 +45,24 @@ All four covariates are numeric; each is given for the context (past_covariates)
 ## Known quirks
 - 90-day context (8640 steps) exceeds the model maximum: truncated to 8192 under `context_policy: truncate`.
 - Horizon limit 16 patches x 64 = 1024 steps per pass; we use 116..124.
+
+## Training data and cutoff
+- **Stated training-data cutoff: none** (model card and technical report give no date).
+- **Weights date (hard upper bound on any training data):** `model.safetensors` last changed **2025-10-30**, HF commit
+  `95a9710e` ("Add model weights and config"). The pinned revision `29ec3766` (2026-06-05) only changed documentation.
+- **Training data (disclosed):** model card: "Subset of Chronos Datasets", "Subset of GIFT-Eval Pretrain", "Synthetic
+  univariate and multivariate data". Technical report (Sec. 4.1, Table 6) lists the real datasets; energy-domain ones are
+  Electricity, Solar, Wind Farms, London Smart Meters and Buildings 900K. No Belgian or Elia dataset is listed; EPF-BE (a
+  Belgian electricity-price task) appears only in the evaluation set (Table 10).
+- **Benchmark overlap (Sec. 5.1):** test portions of GIFT-Eval excluded ("we carefully ensured that it did not overlap with
+  the test portions of any GIFT-Eval task"), with "partial overlap with the training portions of some GIFT-Eval datasets";
+  fev-bench and Chronos Benchmark II not seen in training.
+- **Implication for this benchmark (2025 test year):** training on 2025 Elia load is unlikely (no Belgian load dataset is
+  listed and the listed real datasets are older public sets) but cannot be formally excluded, since no cutoff is published.
+  Nov-Dec 2025 postdate the weights.
+- Sources: https://huggingface.co/amazon/chronos-2 ; https://arxiv.org/abs/2510.15821 (Sec. 4.1, Table 6, Sec. 5.1, Table 10);
+  weight commit date via `HfApi.get_paths_info("amazon/chronos-2", ["model.safetensors"], revision=<pinned>, expand=True)`.
+  Checked 2026-10-20.
 
 ## Verification done
 2026-10-20: read `chronos/chronos2/pipeline.py` (`predict`, long-horizon logic), HF `config.json`

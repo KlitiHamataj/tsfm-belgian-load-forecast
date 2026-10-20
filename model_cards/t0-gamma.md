@@ -6,9 +6,11 @@ publisher: The Forecasting Company
 release_date: "2026-10-12"
 license: Apache 2.0
 source: {repo: https://github.com/theforecastingcompany/tfc-t0, docs: https://huggingface.co/theforecastingcompany/t0-gamma, hf_id: theforecastingcompany/t0-gamma, paper: https://arxiv.org/abs/2609.24559}
+weights_date: "2026-10-15"
+training_data_disclosed: false
 revision: e08aee083778f1f32da4974c0a34276776a35c52
 params: 256M
-max_context: null
+max_context: 8192
 max_horizon_per_pass: 1024
 covariates: {past: true, future: true, categorical: false}
 nan_input: true
@@ -46,11 +48,12 @@ twice (on the series and on its negation) and roughly doubles CPU cost. The sett
 
 ## Input contract
 - NaN marks a missing observation (none occur in our windows). Scaling is internal. No frequency argument.
-- **No documented maximum context.** Neither the model card, the GitHub README, the paper abstract nor `config.json`
-  state a trained or maximum context length (examples use 512-1024 steps; the paper evaluates t0-beta with "a context
-  of nearly a year" on Victoria electricity). `max_context: null`, so the adapter feeds the configured context in full
-  (up to 90 days = 8640 steps = 270 patches) and reports that as `effective_context`. Accuracy at long contexts is
-  therefore an empirical question here, not a documented capability.
+- **Maximum context: 8192 steps (from the paper's evaluation protocol).** The model card, GitHub README and `config.json`
+  state no limit, but the paper (arXiv:2609.24559, benchmark setup) says the model "reads a context of at most 8192 steps"
+  and longer series "are trimmed to their last 8192 steps". That text describes t0-alpha/beta; we apply it to t0-gamma as
+  the publisher's evaluation setting. 90 days (8640 steps) is therefore truncated to 8192 (85.3 days) under
+  `context_policy: truncate`, exactly like Chronos-2, and recorded as `effective_context`. (Corrected 2026-10-20: an earlier
+  version of this card said no maximum was documented; no t0-gamma leaderboard cell had been run.)
 - Horizon <= 1024 steps per forward pass; our 116-124 steps are a single pass.
 
 ## Covariate handling
@@ -64,6 +67,19 @@ Timestral. Past-only covariates would go in as extra context variates (not used 
   `config.json` and "silently degrade the forecast" (tfc-t0 README). Pinned in `pyproject.toml`.
 - Shares the project environment (torch 2.14.1+cpu) with Chronos-2 and Timestral; no separate env needed.
 - Quantile output is float32 on the model's device.
+
+## Training data and cutoff
+- **Stated training-data cutoff: none** for t0-gamma (model card silent; the paper, arXiv:2609.24559 v1, covers t0-alpha
+  and t0-beta only).
+- **Weights date (hard upper bound):** `model.safetensors` last changed **2026-10-15**, HF commit `e08aee08` ("t0-gamma").
+- **Training data:** paper abstract: "Pretraining combines curated public data with synthetic generator families". For
+  t0-alpha the real corpus is the GIFT-Eval pretraining split (89 datasets), and the paper states "Every real series of the
+  corpus ends before 2022"; t0-beta's corpora "were built to exclude every dataset declared by" fev-bench. **t0-gamma's
+  corpus is not described**; energy, Belgian or Elia data are neither confirmed nor excluded.
+- **Implication for this benchmark (2025 test year):** same as Timestral: the weights postdate all of 2025 and the gamma
+  corpus is undisclosed, so training on 2025 Belgian load cannot be ruled out.
+- Sources: https://huggingface.co/theforecastingcompany/t0-gamma ; https://arxiv.org/abs/2609.24559 (abstract;
+  "Training data" paragraph; fev-bench and leakage discussion); weight commit date via `HfApi.get_paths_info`. Checked 2026-10-20.
 
 ## Verification done
 2026-10-20: read the HF model card, the tfc-t0 GitHub README and `t0/forecaster.py` (`predict`, `_series_from_array`,

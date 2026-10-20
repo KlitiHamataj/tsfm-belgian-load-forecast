@@ -42,6 +42,12 @@ weekend WAPE was ~1.7x its weekday WAPE (8.49% vs 4.91% on 2025).
 - **Holiday calendar**: Belgian public holidays (`holidays.Belgium`, local date) enter only through the
   sunday_holiday day-type group: a holiday is matched with Sundays and other holidays, never with workdays.
 
+## Training data and cutoff
+- **No training and no learned parameters.** Each forecast is computed only from the context the window builder hands over
+  (nothing at or after 18:00 on the origin day), so there is no training-data cutoff and no contamination path.
+- Caveat on design, not data: the seasonal baselines' day-type matching was adopted after seeing 2025 results (see
+  "Provenance of the defaults" where present). Checked 2026-10-20.
+
 All lookups use LOCAL (Europe/Brussels) wall-clock quarter-hours and only the context handed over by the window builder, so a source value at or after 18:00 on the origin day is unavailable by construction. Gaps (the skipped spring-DST hour on a source day) are forward-filled along the horizon; the repeated autumn hour is averaged.
 
 These definitions are this repo's own. They are NOT claimed to reproduce the internship values (the internship definitions and data file differ).

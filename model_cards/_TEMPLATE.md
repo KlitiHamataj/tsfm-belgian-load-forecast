@@ -25,5 +25,6 @@ default_params: {}
 ## Input contract (NaN, scaling, frequency)
 ## Covariate handling
 ## Known quirks
+## Training data and cutoff (stated cutoff, weights commit date, disclosed data, implication for the test period, sources)
 ## Verification done (date + what)
 ## Citation
