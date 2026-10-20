@@ -6,7 +6,7 @@ Adding a model = one adapter file + one model card + its id in the `tsfm-all` gr
 
 ## Results
 <!-- results:start -->
-_Auto-filled by `bench summarize` (2026-10-20 16:04 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in the experiment summary._
+_Auto-filled by `bench summarize` (2026-10-20 17:18 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in the experiment summary._
 
 | model                   | covariates   | ctx (days)   |   WAPE ↓ % | CI95 %         |   median-window WAPE ↓ % | Δ vs elia_reference (pp) [CI95]   | days better   | CRPS≈ ↓ MW   |   per window ↓ s |
 |:------------------------|:-------------|:-------------|-----------:|:---------------|-------------------------:|:----------------------------------|:--------------|:-------------|-----------------:|
@@ -22,8 +22,14 @@ _Auto-filled by `bench summarize` (2026-10-20 16:04 UTC). Best configuration per
 | daily_persistence       | -            | -            |       6.21 | [5.81, 6.63]   |                     5.08 | +3.18 [+2.77, +3.61]              | 86/365        | -            |              0   |
 | last_value              | -            | -            |      12.22 | [11.84, 12.59] |                    11.55 | +9.18 [+8.78, +9.58]              | 2/365         | -            |              0   |
 
-Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and determinism: all recorded gates pass.
+Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and determinism: all recorded gates pass. 12 configured cell(s) not aggregated.
 <!-- results:end -->
+
+## Findings
+- **Timestral `symmetric_averaging`** (library default: on): symmetric_averaging off: ~2x faster on CPU, no measurable
+  accuracy loss (209M: small, probable gain; 123M: no effect). Tested as separate ids `timestral-123m-nosym` and
+  `timestral-209m-nosym` at 60d; every `timestral-*` id keeps the library default. Details:
+  `configs/experiments/symmetric_averaging_ablation.yaml` -> its `summary.md` (paired ΔWAPE/ΔCRPS, mirrored-pass test).
 
 ## Quickstart
 ```bash

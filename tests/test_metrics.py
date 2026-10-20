@@ -31,3 +31,18 @@ def test_bootstrap_resamples_windows_and_paired():
     b = w.assign(sum_abs_error=w.sum_abs_error + 1, window_wape=w.window_wape + 1)
     d = M.paired_delta(w, b, 500, 1)
     assert np.isclose(d["delta_wape"], -1.0) and d["days_a_better"] == 8 and d["delta_ci_hi"] < 0
+
+
+def test_crps_window_table_and_paired_delta():
+    eval_q = [0.1, 0.5, 0.9]
+    rows = []
+    for d in ["a", "b", "c", "d"]:
+        for _ in range(4):
+            rows.append({"origin_date": d, "is_scored": True, "actual": 100.0, "P10": 90.0, "P50": 100.0, "P90": 110.0})
+    pts = pd.DataFrame(rows)
+    c = M.crps_window_table(pts, eval_q)
+    # y=100: pinball(90,0.1)=1, pinball(100,0.5)=0, pinball(110,0.9)=1 -> CRPS≈ = 2*(2/3) per point
+    assert np.allclose(c["crps_sum"], 4 * 2 * 2 / 3) and (c["n_points"] == 4).all()
+    worse = pts.assign(P50=pts.P50 + 10.0)  # pinball(110, 0.5) = 5 -> +2*5/3 per point
+    d = M.paired_crps_delta(c, M.crps_window_table(worse, eval_q), 200, 0)
+    assert np.isclose(d["delta_crps_mw"], -10 / 3) and d["days_a_better"] == 4 and d["delta_ci_hi"] < 0

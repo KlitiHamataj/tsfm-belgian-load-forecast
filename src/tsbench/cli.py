@@ -173,5 +173,25 @@ def gates(config: Path = typer.Option(..., "--config"), force: bool = typer.Opti
             typer.echo(f"{mid} {cmd}: {'PASS' if rc == 0 else 'FAIL'}")
 
 
+@app.command("mirrored-pass-test")
+def mirrored_pass_test(config: Path = typer.Option(..., "--config"), model: str = typer.Option(..., "--model"),
+                       covariates: str = "none", context: int = 60) -> None:
+    """Timestral only: score the direct and mirrored passes of symmetric_averaging separately (all windows)."""
+    from tsbench.analyses import mirrored_pass_test as mpt
+
+    r = mpt(load_experiment(config).name, model, covariates, context)
+    typer.echo(json.dumps({k: r[k] for k in ("passes", "error_correlation_direct_vs_mirrored", "reproduction_checks")}, indent=2))
+
+
+@app.command()
+def retime(models: str = typer.Option(..., "--models"), covariates: str = "none,full", context: int = 60,
+           windows: int = 16, repeats: int = 2) -> None:
+    """Controlled latency on a subset of windows (models interleaved, best of N). Writes outputs/timing/retime.json."""
+    from tsbench.analyses import retime as rt
+
+    for r in rt(models.split(","), covariates.split(","), context, windows, repeats):
+        typer.echo(f"{r['model']:24} {r['covariate_set']:5} {r['context_days']}d  {r['per_window_seconds']:.3f} s/window")
+
+
 if __name__ == "__main__":
     app()

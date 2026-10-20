@@ -7,6 +7,7 @@ revision: 9874d252ab0aae16f7f7c999f98f98d6ad7d8365
 params: ~209M
 color: "#6a51a3"
 default_params: {batch_size: 16, symmetric_averaging: false}
+ablation_of: timestral-209m
 ---
 
 ## What it is

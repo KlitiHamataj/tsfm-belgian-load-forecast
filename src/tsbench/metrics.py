@@ -129,3 +129,41 @@ def compute_metrics(points: pd.DataFrame, windows: pd.DataFrame, eval_q, interva
         "n_scored_points": len(s),
         **prob_metrics(points, eval_q, interval),
     }
+
+
+def crps_window_table(points: pd.DataFrame, eval_q: list[float]) -> pd.DataFrame:
+    """Per window: sum over scored points of CRPS≈ (= 2 x mean pinball over eval_q) and point count."""
+    s = points[points["is_scored"]]
+    y = s["actual"].to_numpy()
+    cols = [f"P{round(q * 100):02d}" for q in eval_q]
+    missing = [c for c in cols if c not in s]
+    if missing:
+        raise ValueError(f"CRPS≈ needs all eval quantiles; missing {missing}")
+    pb = np.zeros(len(s))
+    for q, c in zip(eval_q, cols):
+        d = y - s[c].to_numpy()
+        pb += np.maximum(q * d, (q - 1) * d)
+    crps = 2 * pb / len(eval_q)
+    return (pd.DataFrame({"origin_date": s["origin_date"].to_numpy(), "crps": crps})
+            .groupby("origin_date").agg(crps_sum=("crps", "sum"), n_points=("crps", "size")).reset_index())
+
+
+def paired_crps_delta(c_a: pd.DataFrame, c_b: pd.DataFrame, n_boot: int, seed: int) -> dict:
+    """CRPS≈(a) - CRPS≈(b) in MW, pooled over points, bootstrap over days (negative = a better)."""
+    m = c_a.merge(c_b, on="origin_date", suffixes=("_a", "_b"))
+    assert len(m) == len(c_a) == len(c_b), "paired comparison needs identical windows"
+    sa, sb, n = m["crps_sum_a"].to_numpy(), m["crps_sum_b"].to_numpy(), m["n_points_a"].to_numpy()
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(m), size=(n_boot, len(m)))
+    d = (sa[idx].sum(1) - sb[idx].sum(1)) / n[idx].sum(1)
+    win_a, win_b = sa / n, sb / n
+    wins = int((win_a < win_b).sum())
+    ties = int((win_a == win_b).sum())
+    return {
+        "delta_crps_mw": float((sa.sum() - sb.sum()) / n.sum()),
+        "delta_ci_lo": float(np.percentile(d, 2.5)),
+        "delta_ci_hi": float(np.percentile(d, 97.5)),
+        "days_a_better": wins,
+        "n_days": int(len(m)),
+        "sign_test_p": float(binomtest(wins, len(m) - ties, 0.5).pvalue) if len(m) > ties else float("nan"),
+    }

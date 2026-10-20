@@ -15,6 +15,7 @@ from tsbench import metrics as M
 from tsbench.cards import ModelCard
 from tsbench.config import ROOT, Experiment, Protocol
 from tsbench.data.prepare import data_hash
+from tsbench.analyses import load_retime
 from tsbench.leakage import load_gates
 from tsbench.registry import expand_models
 from tsbench.runner import Cell, expand_cells, make_run_id, resolve_params
@@ -166,6 +167,8 @@ def summarize(exp: Experiment, protocol: Protocol, cards: dict[str, ModelCard]) 
         "Caveat: Open-Meteo has no issue timestamps; availability of the temperature covariate at 18:00 the day before "
         "cannot be proven.\n",
     ]
+    if exp.conclusion:
+        md += ["## Conclusion\n", exp.conclusion.strip(), ""]
     md += _gates_section(protocol, cards, ids, runs)
 
     # Leaderboard
@@ -253,6 +256,45 @@ def summarize(exp: Experiment, protocol: Protocol, cards: dict[str, ModelCard]) 
            f"run exists, else its best run" + ("" if chron else f" ({cname} not in this experiment)") + ".\n",
            _md(pd.DataFrame(prow)), ""]
 
+    # Ablation pairs: card.ablation_of -> same covariates/context
+    pairs = []
+    retimed = load_retime()
+    by_cell = {(r["cell"].model_id, r["cell"].covariate_set, r["cell"].context_days): r for r in runs}
+    for r in runs:
+        base_id = r["card"].ablation_of
+        if not base_id:
+            continue
+        b = by_cell.get((base_id, r["cell"].covariate_set, r["cell"].context_days))
+        if b is None:
+            continue
+        dw = M.paired_delta(r["windows"], b["windows"], nb, seed)
+        pa = pd.read_parquet(r["cell"].folder / "points.parquet")
+        pbase = pd.read_parquet(b["cell"].folder / "points.parquet")
+        dc = M.paired_crps_delta(M.crps_window_table(pa, protocol.eval_quantiles),
+                                 M.crps_window_table(pbase, protocol.eval_quantiles), nb, seed)
+        cs_, ctx_ = r["cell"].covariate_set, r["cell"].context_days
+        rv, rb = retimed.get((r["cell"].model_id, cs_, ctx_)), retimed.get((base_id, cs_, ctx_))
+        if rv and rb:
+            rt, rt_src = rv["per_window_seconds"] / rb["per_window_seconds"], f"controlled re-time ({rv['n_windows']} windows)"
+        else:
+            rt = r["meta"]["timings"]["inference_seconds"] / b["meta"]["timings"]["inference_seconds"]
+            rt_src = "full runs"
+        pairs.append({
+            "variant": r["cell"].model_id, "vs base": base_id, "covariates": r["cell"].covariate_set,
+            "ctx (days)": r["cell"].context_days,
+            f"WAPE variant / base %": f"{r['metrics']['wape_pct']:.2f} / {b['metrics']['wape_pct']:.2f}",
+            f"ΔWAPE {ARROW} (pp) [CI95]": f"{dw['delta_wape']:+.3f} [{dw['delta_ci_lo']:+.3f}, {dw['delta_ci_hi']:+.3f}]",
+            "WAPE days better (sign p)": f"{dw['days_a_better']}/{dw['n_days']} ({dw['sign_test_p']:.3g})",
+            f"ΔCRPS≈ {ARROW} (MW) [CI95]": f"{dc['delta_crps_mw']:+.2f} [{dc['delta_ci_lo']:+.2f}, {dc['delta_ci_hi']:+.2f}]",
+            "CRPS days better (sign p)": f"{dc['days_a_better']}/{dc['n_days']} ({dc['sign_test_p']:.3g})",
+            "inference time variant / base": f"{rt:.2f}x ({rt_src})",
+        })
+    if pairs:
+        md += ["## Ablation pairs (variant vs its base model; same checkpoint, covariates and context)\n"
+               "Negative Δ = variant better. ΔWAPE and ΔCRPS≈ are pooled over all scored points; CIs bootstrap the 365 "
+               f"days ({nb} resamples, seed {seed}); sign tests count days where the variant's per-window value is lower.\n",
+               _md(pd.DataFrame(pairs)), ""]
+
     # Latency
     lat = W[[*ID_COLS, "device", "num_threads", "batch_size", "load_seconds", "inference_seconds", "per_window_seconds"]].copy()
     for c in ["load_seconds", "inference_seconds", "per_window_seconds"]:
@@ -261,6 +303,9 @@ def summarize(exp: Experiment, protocol: Protocol, cards: dict[str, ModelCard]) 
                    f"per window {ARROW} s"]
     md += ["## Latency\n", _md(lat), ""]
 
+    analyses = sorted((out / "analyses").glob("*.md")) if (out / "analyses").exists() else []
+    if analyses:
+        md += ["# Analyses\n"] + [a.read_text() for a in analyses]
     if skipped:
         md += ["## Not aggregated (skipped / missing)\n", _md(pd.DataFrame(skipped, columns=["cell", "reason"])), ""]
     (out / "summary.md").write_text("\n".join(md))

@@ -75,6 +75,7 @@ class Experiment(_Strict):
     device: Literal["cpu", "cuda"] = "cpu"
     num_threads: int | None = None
     seed: int = 42
+    conclusion: str | None = None  # human-written finding, printed at the top of summary.md (not part of run_id)
 
 
 def _load_yaml(path: str | Path) -> dict:

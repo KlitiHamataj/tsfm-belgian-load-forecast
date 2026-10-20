@@ -50,6 +50,7 @@ class ModelCard(BaseModel):
     color: str
     needs_reference: bool = False  # adapter consumes the Elia day-ahead forecast column
     ignores_context_and_covariates: bool = False  # baselines: run once under "default"
+    ablation_of: str | None = None  # base model id this card varies (same checkpoint, different settings)
     default_params: dict[str, Any] = Field(default_factory=dict)
     notes: str = ""
 
