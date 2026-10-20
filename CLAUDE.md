@@ -10,7 +10,8 @@ Zero-shot TSFM benchmark on Belgian day-ahead load (Elia ods001). CPU only, `uv`
 - `src/tsbench/`: `data/prepare.py` (raw -> parquet + manifest), `windows.py` (the ONLY place that slices data),
   `models/{base,chronos2,timestral,baselines}.py` (adapters), `runner.py` (matrix, run_id, resume, cell execution),
   `cli.py` (`bench ...`; each model runs in its own subprocess via the hidden `worker` command), `metrics.py`,
-  `summarize.py`, `leakage.py`.
+  `summarize.py`, `leakage.py` (gates), `analyses.py` (`bench mirrored-pass-test`, `bench retime`; results land in
+  `outputs/experiments/<name>/analyses/` and are appended to that summary.md).
 - Outputs: `outputs/runs/<model>/<cov>/ctxNNd/` (shared across experiments), `outputs/experiments/<name>/` (aggregates only).
 
 ## Invariants (do not break)
