@@ -5,7 +5,25 @@ Zero-shot time series foundation models (Chronos-2, Mistral Timestral 5M/28M/123
 Adding a model = one adapter file + one model card + its id in the `tsfm-all` group.
 
 ## Results
-_Auto-filled from `outputs/experiments/leaderboard/summary.md` after `bench summarize` (not run yet)._
+<!-- results:start -->
+_Auto-filled by `bench summarize` (2026-10-20 16:04 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in the experiment summary._
+
+| model                   | covariates   | ctx (days)   |   WAPE ↓ % | CI95 %         |   median-window WAPE ↓ % | Δ vs elia_reference (pp) [CI95]   | days better   | CRPS≈ ↓ MW   |   per window ↓ s |
+|:------------------------|:-------------|:-------------|-----------:|:---------------|-------------------------:|:----------------------------------|:--------------|:-------------|-----------------:|
+| timestral-123m          | full         | 75           |       2.88 | [2.67, 3.09]   |                     2.32 | -0.16 [-0.36, +0.04]              | 215/365       | 208          |              7   |
+| chronos-2               | full         | 60           |       2.96 | [2.75, 3.17]   |                     2.38 | -0.07 [-0.27, +0.12]              | 211/365       | 214          |              2   |
+| timestral-209m          | full         | 60           |       2.97 | [2.75, 3.19]   |                     2.35 | -0.07 [-0.28, +0.14]              | 214/365       | 216          |              8   |
+| timestral-28m           | full         | 60           |       3.02 | [2.78, 3.25]   |                     2.29 | -0.02 [-0.24, +0.20]              | 212/365       | 220          |              1   |
+| elia_reference          | -            | -            |       3.04 | [2.85, 3.23]   |                     2.55 | ref                               | -             | -            |              0   |
+| timestral-5m            | full         | 90           |       3.29 | [3.06, 3.54]   |                     2.56 | +0.25 [+0.03, +0.48]              | 182/365       | 238          |              0.6 |
+| exp_weighted_seasonal   | -            | -            |       3.84 | [3.57, 4.12]   |                     3    | +0.80 [+0.56, +1.04]              | 142/365       | -            |              0   |
+| seasonal_moving_average | -            | -            |       4.24 | [3.94, 4.56]   |                     3.21 | +1.21 [+0.93, +1.48]              | 127/365       | -            |              0   |
+| weekly_persistence      | -            | -            |       4.99 | [4.60, 5.39]   |                     3.61 | +1.95 [+1.59, +2.31]              | 92/365        | -            |              0   |
+| daily_persistence       | -            | -            |       6.21 | [5.81, 6.63]   |                     5.08 | +3.18 [+2.77, +3.61]              | 86/365        | -            |              0   |
+| last_value              | -            | -            |      12.22 | [11.84, 12.59] |                    11.55 | +9.18 [+8.78, +9.58]              | 2/365         | -            |              0   |
+
+Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and determinism: all recorded gates pass.
+<!-- results:end -->
 
 ## Quickstart
 ```bash
@@ -35,7 +53,6 @@ Raw files are read-only, in `data/` and **not committed** (the SHA-256 hashes ar
 - One origin per day at 18:00 Europe/Brussels; the last observed value is 17:45. Nothing at/after 18:00 enters the context.
 - Horizon = 24 bridge steps (18:00-23:45, predicted, **not scored**) + the next local calendar day.
 - **DST:** the scored day has 92/96/100 steps, so horizons are 116/120/124 and the full local day is scored.
-  The internship pipeline scored a fixed 96 steps, so DST days differ from the old numbers.
 - Scored days: every day of 2025 (365 windows). Context may reach into 2024; nothing before 2024-01-01 is ever read.
 - Metrics: pooled WAPE (primary), MAE, RMSE, sMAPE, median-window WAPE (labelled), bootstrap 95% CI over days,
   paired deltas + sign test, slices, probabilistic metrics on the common quantile set 0.1..0.9, latency.

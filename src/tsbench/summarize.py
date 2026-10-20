@@ -23,6 +23,8 @@ from tsbench.windows import window_specs
 log = logging.getLogger(__name__)
 ARROW = "↓"
 ID_COLS = ["model", "covariates", "ctx (days)"]
+README_EXPERIMENT = "leaderboard"  # only the main experiment writes the README results block
+README_START, README_END = "<!-- results:start -->", "<!-- results:end -->"
 
 
 def _fmt_time(s: float) -> str:
@@ -263,6 +265,8 @@ def summarize(exp: Experiment, protocol: Protocol, cards: dict[str, ModelCard]) 
         md += ["## Not aggregated (skipped / missing)\n", _md(pd.DataFrame(skipped, columns=["cell", "reason"])), ""]
     (out / "summary.md").write_text("\n".join(md))
     _figures(W, runs, cards, out)
+    if exp.name == README_EXPERIMENT:
+        _write_readme(runs, protocol, cards, nb, seed, skipped)
     log.info("wrote %s", out)
 
 
@@ -349,3 +353,55 @@ def _figures(W, runs, cards, out):
     fig.tight_layout()
     fig.savefig(fig_dir / "window_wape_boxplot.png", dpi=130)
     plt.close(fig)
+
+
+def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int, seed: int, skipped: list) -> None:
+    """Replace the README block between the results markers with the best run per model."""
+    readme = ROOT / "README.md"
+    text = readme.read_text()
+    if README_START not in text or README_END not in text:
+        log.warning("README has no results markers; skipping")
+        return
+    best: dict[str, dict] = {}
+    for r in runs:
+        k = r["cell"].model_id
+        if k not in best or r["metrics"]["wape_pct"] < best[k]["metrics"]["wape_pct"]:
+            best[k] = r
+    ref = best.get(protocol.reference_model)
+    rows = []
+    for r in sorted(best.values(), key=lambda r: r["metrics"]["wape_pct"]):
+        m = r["metrics"]
+        row = {**_ids(r), f"WAPE {ARROW} %": f"{m['wape_pct']:.2f}", "CI95 %": f"[{m['wape_ci95_lo']:.2f}, {m['wape_ci95_hi']:.2f}]",
+               f"median-window WAPE {ARROW} %": f"{m['median_window_wape_pct']:.2f}"}
+        if ref is not None and r is not ref:
+            d = M.paired_delta(r["windows"], ref["windows"], nb, seed)
+            row[f"Δ vs {protocol.reference_model} (pp) [CI95]"] = f"{d['delta_wape']:+.2f} [{d['delta_ci_lo']:+.2f}, {d['delta_ci_hi']:+.2f}]"
+            row["days better"] = f"{d['days_a_better']}/{d['n_days']}"
+        else:
+            row[f"Δ vs {protocol.reference_model} (pp) [CI95]"] = "ref"
+            row["days better"] = "-"
+        crps = m.get("crps_approx_mw")
+        row[f"CRPS≈ {ARROW} MW"] = f"{crps:.0f}" if crps == crps and crps is not None else "-"
+        row[f"per window {ARROW} s"] = _fmt_time(r["meta"]["timings"]["per_window_seconds"])
+        rows.append(row)
+    gate = ""
+    if ref is not None:
+        w, tgt, tol = ref["metrics"]["wape_pct"], protocol.metrics.elia_reference_wape_pct, protocol.metrics.elia_reference_tolerance
+        gate = f"Gate: {protocol.reference_model} WAPE {w:.3f}% (target {tgt}% ± {tol}) → {'PASS' if abs(w - tgt) <= tol else 'FAIL'}. "
+    failing = [mid for mid in best if load_gates(mid) and not all(load_gates(mid)[k]["passed"] for k in load_gates(mid))]
+    gate += "Leakage and determinism: " + ("all recorded gates pass." if not failing else f"FAILING for {', '.join(failing)}.")
+    block = "\n".join([
+        README_START,
+        f"_Auto-filled by `bench summarize` ({pd.Timestamp.now('UTC'):%Y-%m-%d %H:%M} UTC). Best configuration per model on "
+        f"2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than "
+        f"{protocol.reference_model}). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is "
+        "optimistic; see the full context sweep in the experiment summary._",
+        "",
+        _md(pd.DataFrame(rows)),
+        "",
+        gate + (f" {len(skipped)} configured cell(s) not aggregated." if skipped else ""),
+        README_END,
+    ])
+    start, end = text.index(README_START), text.index(README_END) + len(README_END)
+    readme.write_text(text[:start] + block + text[end:])
+    log.info("updated README results")
