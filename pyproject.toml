@@ -19,6 +19,7 @@ dependencies = [
   "chronos-forecasting>=2.0",
   "timestral",
   "tabulate>=0.10.0",
+  "tfc-t0[torch]>=0.6.0",
 ]
 
 [dependency-groups]
