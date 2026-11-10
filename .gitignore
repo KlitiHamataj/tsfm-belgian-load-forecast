@@ -9,3 +9,4 @@ __pycache__/
 .pytest_cache/
 CLAUDE_CODE_PROMPT.md
 *.log
+CLAUDE.md
