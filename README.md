@@ -1,8 +1,23 @@
-# elia-load-tsfm-benchmark
+# TSFM Belgian Load Benchmark
 
-Zero-shot time series foundation models (Chronos-2, Mistral Timestral 5M/28M/123M/209M) versus baselines on
-**Belgian day-ahead electricity load** (Elia open data, 15-min). CPU only, `uv`, Python 3.12.
-Adding a model = one adapter file + one model card + its id in the `tsfm-all` group.
+This benchmark compares zero-shot time series foundation models (Chronos-2,
+four sizes of Timestral, and t0-gamma) with simple baselines and Elia's own
+day-ahead forecast on Belgian electricity load, using Elia's public
+15-minute data.
+
+Over all 365 days of 2025, the best foundation models with calendar and
+temperature covariates land on par with Elia's forecast: Chronos-2 scores
+2.96% WAPE against Elia's 3.04%, a gap that sits inside the confidence
+intervals. The lowest scores, about 2.88% from Timestral 123M and t0-gamma,
+come with a caveat: both models' weights were released after the test year,
+so training-data contamination is not ruled out. The next step is a rerun
+on Elia data from after 15 October 2026.
+
+![Pooled WAPE on 2025, best configuration per model, with 95% confidence intervals](docs/img/wape_by_model.png)
+
+Models: Chronos-2, Mistral Timestral 5M/28M/123M/209M and t0-gamma, versus baselines and Elia's day-ahead forecast.
+CPU only, `uv`, Python 3.12. Adding a model = one adapter file + one model card + its id in the `tsfm-all` group.
+Regenerate the chart with `uv run python scripts/plot_leaderboard.py` after `bench summarize`.
 
 ## Results
 <!-- results:start -->
@@ -61,7 +76,6 @@ uv run bench run --config configs/experiments/leaderboard.yaml
 uv run bench summarize --config configs/experiments/leaderboard.yaml
 uv run bench gates --config configs/experiments/leaderboard.yaml   # leakage + determinism per model
 ```
-The repo must live on the WSL filesystem (not `/mnt/c`): file I/O there is much slower.
 
 ## Data provenance
 Raw files are read-only, in `data/` and **not committed** (the SHA-256 hashes are in `configs/protocol.yaml`;
@@ -89,8 +103,7 @@ See [docs/adding_a_model.md](docs/adding_a_model.md).
 ## Limitations
 - Open-Meteo availability timing (see above); Elia may have revised historical data since the internship files.
 - Baselines (`last_value`, `daily_persistence`, `weekly_persistence`, `seasonal_moving_average`, `exp_weighted_seasonal`)
-  use only quarter-hours observed before 18:00; exact definitions are in their cards. They are not claimed to reproduce
-  the internship values.
+  use only quarter-hours observed before 18:00; exact definitions are in their cards.
 - Timestral with covariates is ~10x slower than univariate on CPU; this is the library's covariate path (see the cards).
 - CPU-only latency depends on thread count (recorded in `run_meta.json`).
 - **Training-data contamination is not ruled out.** No model publishes a training-data cutoff. Timestral (all sizes) and
@@ -101,3 +114,7 @@ See [docs/adding_a_model.md](docs/adding_a_model.md).
 
 ## Future work
 - Contamination-safe evaluation on Elia data after 2026-10-15 (after all weight dates), same frozen settings.
+
+## Licence and data
+Code is released under the [MIT License](LICENSE). Load data is reused from Elia Open Data (ods001) with
+attribution to Elia; temperature comes from Open-Meteo. Raw data is not redistributed in this repository.
