@@ -101,7 +101,7 @@ Raw files are read-only, in `data/` and **not committed** (the SHA-256 hashes ar
 See [docs/adding_a_model.md](docs/adding_a_model.md).
 
 ## Limitations
-- Open-Meteo availability timing (see above); Elia may have revised historical data since the internship files.
+- Open-Meteo availability timing (see above); Elia may have revised historical data since the files were downloaded (2026-10-19).
 - Baselines (`last_value`, `daily_persistence`, `weekly_persistence`, `seasonal_moving_average`, `exp_weighted_seasonal`)
   use only quarter-hours observed before 18:00; exact definitions are in their cards.
 - Timestral with covariates is ~10x slower than univariate on CPU; this is the library's covariate path (see the cards).
