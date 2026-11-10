@@ -6,11 +6,12 @@ Adding a model = one adapter file + one model card + its id in the `tsfm-all` gr
 
 ## Results
 <!-- results:start -->
-_Auto-filled by `bench summarize` (2026-10-20 17:31 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in the experiment summary._
+_Auto-filled by `bench summarize` (2026-10-20 22:56 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in the experiment summary._
 
 | model                   | covariates   | ctx (days)   |   WAPE ↓ % | CI95 %         |   median-window WAPE ↓ % | Δ vs elia_reference (pp) [CI95]   | days better   | CRPS≈ ↓ MW   |   per window ↓ s |
 |:------------------------|:-------------|:-------------|-----------:|:---------------|-------------------------:|:----------------------------------|:--------------|:-------------|-----------------:|
 | timestral-123m †        | full         | 75           |       2.88 | [2.67, 3.09]   |                     2.32 | -0.16 [-0.36, +0.04]              | 215/365       | 208          |              7   |
+| t0-gamma †              | full         | 75           |       2.88 | [2.68, 3.10]   |                     2.2  | -0.15 [-0.35, +0.04]              | 224/365       | 210          |              6   |
 | chronos-2               | full         | 60           |       2.96 | [2.75, 3.17]   |                     2.38 | -0.07 [-0.27, +0.12]              | 211/365       | 214          |              2   |
 | timestral-209m †        | full         | 60           |       2.97 | [2.75, 3.19]   |                     2.35 | -0.07 [-0.28, +0.14]              | 214/365       | 216          |              8   |
 | timestral-28m †         | full         | 60           |       3.02 | [2.78, 3.25]   |                     2.29 | -0.02 [-0.24, +0.20]              | 212/365       | 220          |              1   |
@@ -22,9 +23,9 @@ _Auto-filled by `bench summarize` (2026-10-20 17:31 UTC). Best configuration per
 | daily_persistence       | -            | -            |       6.21 | [5.81, 6.63]   |                     5.08 | +3.18 [+2.77, +3.61]              | 86/365        | -            |              0   |
 | last_value              | -            | -            |      12.22 | [11.84, 12.59] |                    11.55 | +9.18 [+8.78, +9.58]              | 2/365         | -            |              0   |
 
-† Weights date after the scored period (> 2025-12-31) and real training data not disclosed: the 2025 Elia data may have been seen in training (see each card's "Training data and cutoff"). **Contamination caveat: timestral-123m beats chronos-2 (weights 2025-10-30, training data disclosed, no Belgian load listed) here; this ranking is not contamination-safe.**
+† Weights date after the scored period (> 2025-12-31) and real training data not disclosed: the 2025 Elia data may have been seen in training (see each card's "Training data and cutoff"). **Contamination caveat: timestral-123m, t0-gamma beat chronos-2 (weights 2025-10-30, training data disclosed, no Belgian load listed) here; this ranking is not contamination-safe.**
 
-Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and determinism: all recorded gates pass. 12 configured cell(s) not aggregated.
+Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and determinism: all recorded gates pass.
 <!-- results:end -->
 
 ## Findings
@@ -41,6 +42,13 @@ Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and 
   all of 2025, and its real post-training data is undisclosed, so the 2025 Elia data may have been in its training set.
   Chronos-2's weights date from 2025-10-30 and its disclosed training data lists no Belgian load. These Timestral wins are
   therefore not contamination-safe; see "Future work".
+- **t0-gamma vs Chronos-2 (paired, same covariates and context, 2025).** Without covariates, t0-gamma beats chronos-2
+  at 60-90d (ΔWAPE −0.09 pp, 95% CIs just exclude 0); with `full` covariates the pooled differences are within noise
+  (−0.04 to −0.09 pp at 45-90d, CIs include 0), although the sign test favours it at 75-90d (204-206/365, p < 0.03).
+  At ≤30d it is worse (up to +0.26 pp at 15d without covariates). Its best configuration (`full`, 75d, 2.88%) ties
+  timestral-123m on pooled WAPE and has the best median-window WAPE (2.20%). Covariates help at every context
+  (−0.12 to −0.21 pp). At 90d the adapter caps the context at 85.3 days (reported `effective_context`).
+  **⚠ Same contamination caveat as Timestral:** weights dated 2026-10-15, real training data undisclosed.
 
 ## Quickstart
 ```bash
