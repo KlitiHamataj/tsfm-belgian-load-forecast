@@ -85,12 +85,12 @@ def run(
                "--status-file", str(status_file)]
         rc = _run_worker(cmd, exp_dir / "logs" / f"{mid}.log")
         if rc != 0:  # worker crashed: mark its cells that have no status yet as failed
-            done = {json.loads(l)["cell"] for l in status_file.read_text().splitlines() if l}
+            done = {json.loads(line)["cell"] for line in status_file.read_text().splitlines() if line}
             for c in expand_cells(exp, protocol, cards, [mid]):
                 if c.label not in done:
                     _write_status(status_file, c, "", "failed", f"worker exit code {rc}", 0.0)
         typer.echo(f"finished {mid}")
-    rows = [json.loads(l) for l in status_file.read_text().splitlines() if l]
+    rows = [json.loads(line) for line in status_file.read_text().splitlines() if line]
     st = pd.DataFrame(rows)
     st.to_csv(exp_dir / "status.csv", index=False)
     typer.echo(st.groupby("status").size().to_string())

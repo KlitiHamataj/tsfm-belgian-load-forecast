@@ -98,9 +98,9 @@ def prob_metrics(points: pd.DataFrame, eval_q: list[float], interval: tuple[floa
     out: dict = {}
     lo, hi = (f"P{round(q * 100):02d}" for q in interval)
     if lo in s and hi in s:
-        l, h = s[lo].to_numpy(), s[hi].to_numpy()
-        out["coverage_p10_p90_pct"] = float(((y >= l) & (y <= h)).mean() * 100)
-        out["interval_width_mw"] = float((h - l).mean())
+        q_lo, q_hi = s[lo].to_numpy(), s[hi].to_numpy()
+        out["coverage_p10_p90_pct"] = float(((y >= q_lo) & (y <= q_hi)).mean() * 100)
+        out["interval_width_mw"] = float((q_hi - q_lo).mean())
     avail = [q for q in eval_q if f"P{round(q * 100):02d}" in s and s[f"P{round(q * 100):02d}"].notna().all()]
     if avail:
         pb = {q: pinball(y, s[f"P{round(q * 100):02d}"].to_numpy(), q) for q in avail}

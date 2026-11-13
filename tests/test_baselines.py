@@ -19,7 +19,8 @@ def _task(protocol, df, date, days):
 
 def test_weekly_persistence_uses_same_wall_clock(protocol, df):
     sp, t = _task(protocol, df, "2025-06-10", 8)
-    a = WeeklyPersistenceAdapter(load_all_cards()["weekly_persistence"]); a.load({}, "cpu")
+    a = WeeklyPersistenceAdapter(load_all_cards()["weekly_persistence"])
+    a.load({}, "cpu")
     f = a.predict([t])[0]
     exp = df["load"].reindex(t.horizon_index - np.timedelta64(7, "D")).to_numpy()
     np.testing.assert_allclose(f.quantiles[0.5], exp)
@@ -27,7 +28,8 @@ def test_weekly_persistence_uses_same_wall_clock(protocol, df):
 
 def test_seasonal_ma_uses_only_available_sources(protocol, df):
     sp, t = _task(protocol, df, "2025-06-10", 9)
-    a = SeasonalMovingAverageAdapter(load_cards := load_all_cards()["seasonal_moving_average"]); a.load({"n_days": 7, "day_matching": "all"}, "cpu")
+    a = SeasonalMovingAverageAdapter(load_cards := load_all_cards()["seasonal_moving_average"])
+    a.load({"n_days": 7, "day_matching": "all"}, "cpu")
     f = a.predict([t])[0]
     # last step 23:45 on June 10: lag 1 (June 9 23:45) is after the 17:45 cut -> must use June 8..June 2
     h = t.horizon_index[-1]
@@ -45,7 +47,8 @@ def test_day_type():
 
 def test_daily_persistence_latest_observed_same_quarter_hour(protocol, df):
     sp, t = _task(protocol, df, "2025-06-10", 3)
-    a = DailyPersistenceAdapter(load_all_cards()["daily_persistence"]); a.load({}, "cpu")
+    a = DailyPersistenceAdapter(load_all_cards()["daily_persistence"])
+    a.load({}, "cpu")
     f = a.predict([t])[0].quantiles[0.5]
     h = t.horizon_index
     local = h.tz_convert(protocol.timezone)
