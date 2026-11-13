@@ -58,22 +58,25 @@ covariate set.
   roughly halves both paths (see `timestral-209m-nosym`).
 
 ## Training data and cutoff
-- **Stated training-data cutoff: none** (model card, blog post, docs and GitHub README give no date; the model card says
-  "Tech report: coming soon!").
+- **Stated training-data cutoff: none.** The tech report (arXiv:2610.37585, submitted 2026-10-27) gives no cutoff and
+  no time range for its real data; neither do the model card, blog post, docs or GitHub README.
 - **Weights date (hard upper bound):** `model.safetensors` last changed **2026-10-15**, HF commit `2554d703`
   ("Super-squash branch 'main' using huggingface_hub"); all four sizes were uploaded the same day.
-- **Training data (as disclosed):** blog post: "Trained on a large and diverse corpus"; "The majority of the training data
-  was synthetic"; pre-training on synthetic data only, then "post-trained on a mix of real and synthetic data with a 4x
-  longer context". The real datasets are **not named**; energy, Belgian or Elia data are neither confirmed nor excluded.
-- **Benchmark overlap:** not addressed for the released model (the blog's "nothing we backtest was seen during
-  pre-training" refers to customer fine-tuning in Forge, not to these weights).
+- **Training data (as disclosed):** the tech report (§2.1, §4.1) confirms the two-stage pipeline: pre-training
+  "exclusively on synthetic data" (context 8,192), then post-training "on a mixture of real and synthetic data with
+  extended context" (32,768). §4.1 describes only the synthetic corpus. The real post-training datasets are **still not
+  named** and no domains are listed; energy, Belgian or Elia data are neither confirmed nor excluded. (Energy appears
+  only in IND-Eval, an evaluation benchmark, Appendix A.2.) Blog post: "The majority of the training data was synthetic".
+- **Benchmark overlap:** not addressed. The tech report has no decontamination or train/test-overlap statement, including
+  for its own benchmarks (GIFT-Eval, TIME, fev-bench); the blog's "nothing we backtest was seen during pre-training"
+  refers to customer fine-tuning in Forge, not to these weights.
 - **Implication for this benchmark (2025 test year):** the weights postdate all of 2025 and the real post-training data is
-  undisclosed. Elia load (ods001) and the Elia day-ahead forecasts are public, so **it cannot be ruled out that 2025 Belgian
+  undisclosed (unchanged by the tech report). Elia load (ods001) and the Elia day-ahead forecasts are public, so **it cannot be ruled out that 2025 Belgian
   load was in the training data.** Any result where Timestral beats a model with an earlier weights date must carry this
   caveat.
-- Sources: https://huggingface.co/mistralai/Timestral-28M ; https://mistral.ai/news/timestral/ ;
+- Sources: Timestral tech report, https://arxiv.org/abs/2610.37585 ; https://huggingface.co/mistralai/Timestral-28M ; https://mistral.ai/news/timestral/ ;
   https://docs.mistral.ai/models/timestral-1-0 ; https://github.com/mistralai/timestral ; weight commit date via
-  `HfApi.get_paths_info(..., ["model.safetensors"], revision=<pinned>, expand=True)`. Checked 2026-10-20.
+  `HfApi.get_paths_info(..., ["model.safetensors"], revision=<pinned>, expand=True)`. Checked 2026-10-20; tech report read 2026-11-13.
 
 ## Verification done
 2026-10-20: read `timestral/forecaster.py` (v1.0.0, git a534bdb) and the repo README; HF config checked;
@@ -81,3 +84,4 @@ revision pinned to the commit above.
 
 ## Citation
 Mistral AI, Timestral 1.0 (2026-10-15). https://github.com/mistralai/timestral
+Petralia et al., "Timestral", arXiv:2610.37585 (2026-10-27). https://arxiv.org/abs/2610.37585
