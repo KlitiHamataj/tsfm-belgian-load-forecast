@@ -1,8 +1,8 @@
 """Plot pooled WAPE (best configuration per model) from the leaderboard results.
 
-Reads outputs/experiments/leaderboard/results_wide.csv (written by `bench summarize`) and saves
+Reads results/leaderboard/results_wide.csv (written by `bench summarize`) and saves
 docs/img/wape_by_model.png. Best configuration and the † contamination flag follow the same rules
-as the README results table.
+as the README results table. Bars use each model card's `color`; † models are hatched.
 
     uv run python scripts/plot_leaderboard.py
 """
@@ -18,7 +18,7 @@ import pandas as pd
 from tsbench.cards import load_all_cards
 from tsbench.config import ROOT, load_protocol
 
-RESULTS = ROOT / "outputs" / "experiments" / "leaderboard" / "results_wide.csv"
+RESULTS = ROOT / "results" / "leaderboard" / "results_wide.csv"
 OUT = ROOT / "docs" / "img" / "wape_by_model.png"
 # Omitted from the chart only (still in the README table): its ~12% WAPE would squash the axis.
 EXCLUDE = {"last_value"}
@@ -46,24 +46,22 @@ def main() -> None:
         return f"{name}  ({r.covariates}, {r['ctx (days)']}d)"
 
     ref_wape = float(best.loc[best.model == protocol.reference_model, "wape_pct"].iloc[0])
-    colors = [
-        "#444444" if m == protocol.reference_model
-        else "#9e9e9e" if f == "baseline"
-        else "#c0504d" if flagged(m)
-        else "#2f6db5"
-        for m, f in zip(best.model, best.family)
-    ]
+    colors = [cards[m].color for m in best.model]
+    hatches = ["////" if flagged(m) else "" for m in best.model]
 
     fig, ax = plt.subplots(figsize=(8, 5), dpi=100)
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
     y = range(len(best))
     err = [best.wape_pct - best.wape_ci95_lo, best.wape_ci95_hi - best.wape_pct]
-    ax.barh(y, best.wape_pct, xerr=err, color=colors, height=0.65,
-            error_kw={"ecolor": "black", "elinewidth": 1, "capsize": 3})
+    plt.rcParams["hatch.linewidth"] = 1.2
+    bars = ax.barh(y, best.wape_pct, xerr=err, color=colors, height=0.65, edgecolor="white", linewidth=0,
+                   error_kw={"ecolor": "black", "elinewidth": 1, "capsize": 3})
+    for bar, h in zip(bars, hatches):
+        bar.set_hatch(h)
     ax.set_yticks(list(y), [label(r) for _, r in best.iterrows()], fontsize=9)
-    for yi, w in zip(y, best.wape_pct):
-        ax.text(0.1, yi, f"{w:.2f}", va="center", ha="left", fontsize=8, color="white")
+    for yi, w, hi in zip(y, best.wape_pct, best.wape_ci95_hi):
+        ax.text(hi + 0.05, yi, f"{w:.2f}", va="center", ha="left", fontsize=8, color="black")
     ax.axvline(ref_wape, color="black", linestyle="--", linewidth=1)
     ax.text(ref_wape, len(best) - 0.4, f" {protocol.reference_model} {ref_wape:.2f}%",
             va="bottom", ha="left", fontsize=8)
@@ -71,7 +69,7 @@ def main() -> None:
     ax.set_ylim(-0.6, len(best) - 0.1)
     ax.set_title("Best configuration per model, 365 daily windows", fontsize=11)
     ax.spines[["top", "right"]].set_visible(False)
-    note = "† weights released after 2025, training data undisclosed: contamination not ruled out."
+    note = "† hatched: weights released after 2025, training data undisclosed: contamination not ruled out."
     if len(dropped):
         omitted = ", ".join(f"{m} ({w:.1f}%)" for m, w in dropped.items())
         note += f" Not shown: {omitted}; see the table."
