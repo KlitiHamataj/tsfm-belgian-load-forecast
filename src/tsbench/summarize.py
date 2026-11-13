@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 
 import matplotlib
 
@@ -26,6 +27,8 @@ ARROW = "↓"
 ID_COLS = ["model", "covariates", "ctx (days)"]
 README_EXPERIMENT = "leaderboard"  # only the main experiment writes the README results block
 README_START, README_END = "<!-- results:start -->", "<!-- results:end -->"
+RESULTS_DIR = ROOT / "results"  # tracked copy of each experiment's aggregates (outputs/ is gitignored)
+PUBLISHED = ["summary.md", "results_wide.csv", "results_long.csv"]
 
 
 def _fmt_time(s: float) -> str:
@@ -282,7 +285,7 @@ def summarize(exp: Experiment, protocol: Protocol, cards: dict[str, ModelCard]) 
         pairs.append({
             "variant": r["cell"].model_id, "vs base": base_id, "covariates": r["cell"].covariate_set,
             "ctx (days)": r["cell"].context_days,
-            f"WAPE variant / base %": f"{r['metrics']['wape_pct']:.2f} / {b['metrics']['wape_pct']:.2f}",
+            "WAPE variant / base %": f"{r['metrics']['wape_pct']:.2f} / {b['metrics']['wape_pct']:.2f}",
             f"ΔWAPE {ARROW} (pp) [CI95]": f"{dw['delta_wape']:+.3f} [{dw['delta_ci_lo']:+.3f}, {dw['delta_ci_hi']:+.3f}]",
             "WAPE days better (sign p)": f"{dw['days_a_better']}/{dw['n_days']} ({dw['sign_test_p']:.3g})",
             f"ΔCRPS≈ {ARROW} (MW) [CI95]": f"{dc['delta_crps_mw']:+.2f} [{dc['delta_ci_lo']:+.2f}, {dc['delta_ci_hi']:+.2f}]",
@@ -312,7 +315,24 @@ def summarize(exp: Experiment, protocol: Protocol, cards: dict[str, ModelCard]) 
     _figures(W, runs, cards, out)
     if exp.name == README_EXPERIMENT:
         _write_readme(runs, protocol, cards, nb, seed, skipped)
+    _publish(out, RESULTS_DIR / exp.name)
     log.info("wrote %s", out)
+
+
+def _publish(out, dest) -> None:
+    """Copy the aggregates (summary, results tables, figures, analyses) to the tracked results/ folder."""
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True)
+    for name in PUBLISHED:
+        shutil.copy2(out / name, dest / name)
+    for sub, pattern in [("figures", "*.png"), ("analyses", "*")]:
+        files = sorted((out / sub).glob(pattern)) if (out / sub).exists() else []
+        if files:
+            (dest / sub).mkdir()
+            for f in files:
+                shutil.copy2(f, dest / sub / f.name)
+    log.info("published %s", dest.relative_to(ROOT))
 
 
 def _col(cards, mid):
@@ -444,11 +464,25 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
                   "the 2025 Elia data may have been seen in training (see each card's \"Training data and cutoff\").")
         prim = best.get(protocol.primary_comparison_model)
         if prim is not None:
-            beats = [r["cell"].model_id for r in ranked if _flag(r) and r["metrics"]["wape_pct"] < prim["metrics"]["wape_pct"]]
-            if beats:
-                caveat += (f" **Contamination caveat: {', '.join(beats)} beat{'s' if len(beats) == 1 else ''} "
-                           f"{protocol.primary_comparison_model} (weights {best[protocol.primary_comparison_model]['card'].weights_date}, "
-                           "training data disclosed, no Belgian load listed) here; this ranking is not contamination-safe.**")
+            below = [r for r in ranked if _flag(r) and r["metrics"]["wape_pct"] < prim["metrics"]["wape_pct"]]
+            if below:
+                # Paired over the same days, best configuration vs best configuration.
+                noise = []
+                for r in below:
+                    d = M.paired_delta(r["windows"], prim["windows"], nb, seed)
+                    if d["delta_ci_lo"] <= 0 <= d["delta_ci_hi"]:
+                        noise.append(r)
+                with_cov = all(r["cell"].covariate_set != "none" for r in [*below, prim])
+                if len(noise) == len(below):
+                    qual = " (within noise with covariates)" if with_cov else " (within noise)"
+                elif noise:
+                    qual = f" ({', '.join(r['cell'].model_id for r in noise)} within noise)"
+                else:
+                    qual = ""
+                caveat += (f" **Contamination caveat: {', '.join(r['cell'].model_id for r in below)} "
+                           f"score{'s' if len(below) == 1 else ''} below {protocol.primary_comparison_model}{qual} here. "
+                           f"The weights of {protocol.primary_comparison_model} date from {prim['card'].weights_date} and "
+                           "its disclosed training data lists no Belgian load, so this ranking is not contamination-safe.**")
     gate = ""
     if ref is not None:
         w, tgt, tol = ref["metrics"]["wape_pct"], protocol.metrics.elia_reference_wape_pct, protocol.metrics.elia_reference_tolerance
@@ -460,7 +494,7 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
         f"_Auto-filled by `bench summarize` ({pd.Timestamp.now('UTC'):%Y-%m-%d %H:%M} UTC). Best configuration per model on "
         f"2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than "
         f"{protocol.reference_model}). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is "
-        "optimistic; see the full context sweep in the experiment summary._",
+        f"optimistic; see the full context sweep in [the experiment summary](results/{README_EXPERIMENT}/summary.md)._",
         "",
         _md(pd.DataFrame(rows)),
         "",

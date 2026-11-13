@@ -1,0 +1,50 @@
+{
+  "model": "timestral-209m",
+  "covariate_set": "none",
+  "context_days": 60,
+  "n_windows": 365,
+  "elapsed_seconds": 375.8500981820107,
+  "passes": {
+    "direct": {
+      "wape_pct": 2.9998286793759568,
+      "crps_approx_mw": 218.6040925316503,
+      "coverage_p10_p90_pct": 79.4634703196347,
+      "interval_width_mw": 844.3017578125
+    },
+    "mirrored": {
+      "wape_pct": 3.113558235754378,
+      "crps_approx_mw": 226.5015271943052,
+      "coverage_p10_p90_pct": 79.32933789954339,
+      "interval_width_mw": 873.1804809570312
+    },
+    "average": {
+      "wape_pct": 3.0348273794443643,
+      "crps_approx_mw": 220.89448052907292,
+      "coverage_p10_p90_pct": 79.82020547945206,
+      "interval_width_mw": 858.7410888671875
+    }
+  },
+  "error_correlation_direct_vs_mirrored": 0.9755048134612154,
+  "p50_abs_diff_direct_vs_mirrored_mw": 62.589900019397476,
+  "p50_rmse_direct_mw": 396.83311322217094,
+  "paired_mirrored_vs_direct": {
+    "delta_wape": 0.11372955637842168,
+    "delta_ci_lo": 0.04892359265244089,
+    "delta_ci_hi": 0.17607005818772914,
+    "days_a_better": 145,
+    "n_days": 365,
+    "sign_test_p": 0.00010194837832308916
+  },
+  "paired_crps_mirrored_vs_direct": {
+    "delta_crps_mw": 7.897434662654916,
+    "delta_ci_lo": 3.5581484684900775,
+    "delta_ci_hi": 12.119052061613353,
+    "days_a_better": 145,
+    "n_days": 365,
+    "sign_test_p": 0.00010194837832308916
+  },
+  "reproduction_checks": {
+    "direct_vs_timestral-209m-nosym_max_abs_diff_P50_mw": 0.0,
+    "average_vs_timestral-209m_max_abs_diff_P50_mw": 0.0
+  }
+}
