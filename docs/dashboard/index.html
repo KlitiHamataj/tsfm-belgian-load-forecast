@@ -1,38 +1,39 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Belgian Load Forecasts 2025</title>
 <meta name="description" content="Zero-shot time series foundation models vs Elia's day-ahead forecast on Belgian electricity load, every day of 2025, 15-minute resolution.">
 <style>
-  :root {
+  /* Light is the default regardless of the system setting; the toggle switches data-theme. */
+  :root, :root[data-theme="light"] {
     --bg: #ffffff; --surface: #ffffff; --panel: #f6f7f9; --text: #1b1d21; --muted: #5d6470; --border: #dfe2e7;
     --grid: #eceef1; --actual: #8c8c8c; --accent: #2171b5; --sel: rgba(33, 113, 181, 0.10); --hol: #b0485a;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #16181d; --surface: #16181d; --panel: #1f2228; --text: #e6e8eb; --muted: #a0a7b2; --border: #333842;
-      --grid: #2a2e36; --actual: #8c8c8c; --accent: #5aa0e0; --sel: rgba(90, 160, 224, 0.14); --hol: #e0798a;
-    }
+    color-scheme: light;
   }
   :root[data-theme="dark"] {
     --bg: #16181d; --surface: #16181d; --panel: #1f2228; --text: #e6e8eb; --muted: #a0a7b2; --border: #333842;
     --grid: #2a2e36; --actual: #8c8c8c; --accent: #5aa0e0; --sel: rgba(90, 160, 224, 0.14); --hol: #e0798a;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
-  h1 { font-size: 1.35rem; margin: 0 0 4px; line-height: 1.25; }
-  .sub { color: var(--muted); margin: 0 0 16px; font-size: 0.92rem; }
+  header { display: flex; gap: 12px; align-items: flex-start; }
+  header .titles { flex: 1; min-width: 0; }
+  h1 { font-size: 1.35rem; margin: 0 0 6px; line-height: 1.25; }
+  .sub { color: var(--muted); margin: 0 0 4px; font-size: 0.92rem; }
   h2 { font-size: 0.95rem; margin: 22px 0 6px; font-weight: 600; }
   .hint { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
-  .controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 12px;
+  .theme-toggle { flex: none; background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 0.82rem; cursor: pointer; white-space: nowrap; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 12px; margin-top: 14px;
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
   .series-ctl { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
-  .swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
-  .swatch.actual { height: 5px; }
+  .swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; flex: none; }
+  .swatch.actual { height: 6px; }
   .series-ctl label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
   .band { color: var(--muted); font-size: 0.82rem; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
@@ -40,9 +41,11 @@
     font-size: 0.85rem; cursor: pointer; }
   .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
   .spacer { flex: 1; }
+  .dagger { color: var(--muted); font-size: 0.8rem; margin: 6px 2px 0; }
   .chart { width: 100%; }
   #year { height: 280px; }
   #detail { height: 460px; }
+  .caption { color: var(--muted); font-size: 0.84rem; margin: 6px 0 0; }
   .readout { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
   th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -54,22 +57,39 @@
   footer strong { color: var(--text); font-weight: 600; }
   a { color: var(--accent); }
   #status { color: var(--muted); padding: 30px 0; }
-  @media (max-width: 640px) { #year { height: 240px; } #detail { height: 380px; } h1 { font-size: 1.15rem; } }
+  @media (max-width: 767px) {
+    h1 { font-size: 1.15rem; }
+    #year { height: 220px; }
+    #detail { height: 52vh; min-height: 320px; max-height: 440px; }
+    th, td { padding: 6px 4px; }
+    table { font-size: 0.82rem; }
+    td:first-child { white-space: normal; }
+  }
 </style>
 </head>
 <body>
 <main>
-  <h1>Belgian day-ahead load: zero-shot forecasts vs actual, 2025</h1>
-  <p class="sub">Every day of 2025 at 15-minute resolution. Forecasts issued at 18:00 (Brussels) for the next local
-    calendar day. Lower WAPE is better.</p>
+  <header>
+    <div class="titles">
+      <h1>Belgian day-ahead load: zero-shot forecasts vs actual, 2025</h1>
+      <p class="sub">Every day of 2025 at 15-minute resolution. Forecasts issued at 18:00 (Brussels) for the next local
+        calendar day. Lower WAPE is better.</p>
+      <p class="sub">All models use calendar + temperature covariates; each shown at its best context length on 2025
+        (selected after the fact, so slightly optimistic).</p>
+    </div>
+    <button type="button" class="theme-toggle" id="theme" aria-label="Switch colour theme">Dark</button>
+  </header>
 
   <div class="controls" id="controls" aria-label="Chart controls"></div>
+  <p class="dagger">† see <a href="#caveat">contamination caveat</a></p>
 
   <h2>Daily WAPE through the year <span class="hint">· click a day to inspect it below</span></h2>
   <div id="year" class="chart"></div>
 
-  <h2 id="detail-title">15-minute load and forecasts</h2>
+  <h2>15-minute load and forecasts</h2>
   <div id="detail" class="chart"><div id="status">Loading data…</div></div>
+  <p class="caption">Default view: the most typical week of 2025 (week WAPE closest to the full-year WAPE). Click any
+    day in the chart above to inspect it.</p>
 
   <h2>WAPE <span class="hint">· pooled over all quarter-hours; "Visible range" follows the zoom of the chart above</span></h2>
   <div class="readout"><table id="readout" aria-live="polite"></table></div>
@@ -77,12 +97,11 @@
   <footer>
     <p><strong>Setup.</strong> Zero-shot (no fine-tuning), CPU inference. One forecast per day, issued at 18:00
       Europe/Brussels from data up to 17:45, for the next local calendar day (92/96/100 quarter-hours on DST days);
-      every day of 2025 (365 forecasts). Each model is shown in its best configuration on 2025 (covariates and context
-      length in its label), which makes its WAPE slightly optimistic. Lines are the median (P50) forecast; bands are
-      P10-P90.</p>
-    <p><strong>Contamination caveat.</strong> Timestral and t0-gamma weights were released on 2026-10-15, after the
-      2025 test year, and their real training data is not disclosed, so 2025 Elia data may have been seen in training.
-      Chronos-2's weights date from 2025-10-30 and its disclosed training data lists no Belgian load.</p>
+      every day of 2025 (365 forecasts). Lines are the median (P50) forecast; bands are P10-P90.</p>
+    <p id="caveat"><strong>† Contamination caveat.</strong> Timestral and t0-gamma weights were released on
+      2026-10-15, after the 2025 test year, and their real training data is not disclosed, so 2025 Elia data may have
+      been seen in training. Chronos-2's weights date from 2025-10-30 and its disclosed training data lists no Belgian
+      load.</p>
     <p><strong>Data revisions.</strong> Models read Elia's revised historical load as context; at 18:00 on each real day
       Elia's forecasters had only preliminary measurements and their own weather forecasts, which likely favours the
       models slightly.</p>
@@ -100,26 +119,24 @@
 const SHORT = { "New Year's Day": "New Year", "Easter Monday": "Easter Mon", "Labor Day": "Labour Day",
   "Ascension Day": "Ascension", "Pentecost Monday": "Whit Monday", "National Day": "National Day",
   "Assumption Day": "Assumption", "Armistice Day": "Armistice", "Christmas Day": "Christmas" };
-const LABEL = { elia_reference: "Elia operational forecast (reference)" };
+const NARROW = window.matchMedia("(max-width: 767px)");
 const state = { show: {}, band: {}, mode: "week", day: null, range: null };
-let D, Y, X, SRC, TZ, HOURLY, dark = false;
+let D, Y, X, SRC, TZ, HOURLY, POS;
 
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-const isDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
+const dark = () => document.documentElement.dataset.theme === "dark";
+const narrow = () => NARROW.matches;
+const ids = () => Object.keys(D.series);
 function color(sid) {
-  const c = D.series[sid].color;
-  return dark && c.toLowerCase() === "#000000" ? "#ededed" : c;  // card black is invisible on a dark surface
+  const c = D.series[sid].color.toLowerCase();
+  if (c === "#000000") return dark() ? "#ededed" : "#1a1a1a";  // card black: near-black / near-white by theme
+  return D.series[sid].color;
 }
 function rgba(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
 }
-function label(sid) {
-  const s = D.series[sid];
-  if (LABEL[sid]) return LABEL[sid];
-  const [, cov, ctx] = s.cell.split("/");
-  return `${s.label} (${cov}, ${ctx.replace("ctx", "")})` + (s.contamination_caveat ? " †" : "");
-}
+const label = (sid) => (narrow() ? D.series[sid].short : D.series[sid].label);
 
 // Local wall-clock x values. The regular UTC grid is converted to Europe/Brussels; the repeated autumn hour gets a
 // line break (null) so lines do not jump back in time.
@@ -136,8 +153,7 @@ function buildTime() {
     }
     return offCache.get(h);
   };
-  X = []; SRC = []; TZ = [];
-  const POS = new Array(D.n);
+  X = []; SRC = []; TZ = []; POS = new Array(D.n);
   let prev = -Infinity;
   for (let i = 0; i < D.n; i++) {
     const utc = start + i * step, off = offset(utc), loc = utc + off;
@@ -154,6 +170,24 @@ function buildTime() {
   }
 }
 const mapY = (arr) => SRC.map((i) => (i < 0 ? null : arr[i]));
+// P10-P90 band as an SVG trace (WebGL fills do not render reliably), only for the visible window +/- 1 day.
+// Views longer than a month use an hourly envelope (min P10 / max P90 per hour) to keep the SVG light.
+function bandData(sid, lo, hi) {
+  const a = addDays(lo.slice(0, 10), -1), b = addDays(hi.slice(0, 10), 1) + " 23:59";
+  const P10 = D.series[sid].P10, P90 = D.series[sid].P90;
+  const hourly = (Date.parse(hi.slice(0, 10)) - Date.parse(lo.slice(0, 10))) / 864e5 > 31;
+  const x = [], y10 = [], y90 = [];
+  for (let k = 0; k < X.length; k++) {
+    const i = SRC[k];
+    if (i < 0 || X[k] < a || X[k] > b) continue;
+    if (!hourly) { x.push(X[k]); y10.push(P10[i]); y90.push(P90[i]); continue; }
+    if (i % 4) continue;
+    x.push(X[k]);
+    y10.push(Math.min(P10[i], P10[i + 1], P10[i + 2], P10[i + 3]));
+    y90.push(Math.max(P90[i], P90[i + 1], P90[i + 2], P90[i + 3]));
+  }
+  return { x, y10, y90 };
+}
 
 function addDays(d, n) {
   const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10);
@@ -164,6 +198,7 @@ function viewFor(day, mode) {
   const mon = addDays(day, -dow);
   return [mon < "2025-01-01" ? "2025-01-01" : mon, addDays(mon, 7) > "2026-01-01" ? "2026-01-01" : addDays(mon, 7)];
 }
+const currentRange = () => state.range || viewFor(state.day, state.mode).map((d) => d + " 00:00");
 
 function axisStyle() {
   return { gridcolor: css("--grid"), linecolor: css("--border"), zerolinecolor: css("--grid"),
@@ -178,11 +213,17 @@ const CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: [
 
 function drawYear() {
   const traces = Y.series.filter((s) => state.show[s]).map((s) => ({
-    type: "scatter", mode: "lines+markers", name: label(s), x: Y.dates, y: Y.wape[s],
-    line: { color: color(s), width: 1.5 }, marker: { color: color(s), size: 4 },
+    type: "scatter", mode: narrow() ? "lines" : "lines+markers", name: label(s), x: Y.dates, y: Y.wape[s],
+    line: { color: color(s), width: narrow() ? 1.2 : 1.5 }, marker: { color: color(s), size: 4 },
     hovertemplate: `${label(s)}: %{y:.2f}%<extra></extra>`,
   }));
-  const [a, b] = state.range ? state.range.map((r) => r.slice(0, 10)) : viewFor(state.day, state.mode);
+  // Holiday markers on the x axis; their names show in the hover (the only labels on narrow screens).
+  const hx = [], hn = [];
+  Y.dates.forEach((d, i) => { if (Y.is_holiday[i]) { hx.push(d); hn.push(Y.holiday_name[i] || "Public holiday"); } });
+  traces.push({ type: "scatter", mode: "markers", name: "Public holiday", x: hx, y: hx.map(() => 0), text: hn,
+    marker: { symbol: "triangle-up", size: 9, color: css("--hol") }, cliponaxis: false,
+    hovertemplate: "Public holiday: %{text}<extra></extra>" });
+  const [a, b] = currentRange().map((r) => r.slice(0, 10));
   const shapes = [{ type: "rect", xref: "x", yref: "paper", x0: a, x1: b, y0: 0, y1: 1,
     fillcolor: css("--sel"), line: { width: 0 }, layer: "below" }];
   const ann = [];
@@ -190,55 +231,27 @@ function drawYear() {
     if (!Y.is_holiday[i]) return;
     const wk = !Y.is_weekend[i];
     shapes.push({ type: "line", xref: "x", yref: "paper", x0: d, x1: d, y0: 0, y1: 1, layer: "below",
-      line: { color: css("--hol"), width: 1, dash: wk ? "solid" : "dot" }, opacity: wk ? 0.55 : 0.35 });
-    if (wk) ann.push({ x: d, y: 1, xref: "x", yref: "paper", yanchor: "top", xanchor: "right", textangle: -90,
-      text: SHORT[Y.holiday_name[i]] || Y.holiday_name[i] || "holiday", showarrow: false,
+      line: { color: css("--hol"), width: 1, dash: wk ? "solid" : "dot" }, opacity: wk ? 0.5 : 0.3 });
+    if (wk && !narrow()) ann.push({ x: d, y: 1, xref: "x", yref: "paper", yanchor: "top",
+      xanchor: i === 0 ? "left" : "right",
+      textangle: -90, text: SHORT[Y.holiday_name[i]] || Y.holiday_name[i] || "holiday", showarrow: false,
       font: { size: 10, color: css("--hol") } });
   });
-  const layout = { ...baseLayout(), margin: { l: 48, r: 12, t: 8, b: 30 }, showlegend: false, hovermode: "x unified",
+  const layout = { ...baseLayout(), margin: { l: narrow() ? 36 : 48, r: 10, t: 8, b: 30 }, showlegend: false,
+    hovermode: "x unified",
     xaxis: { ...axisStyle(), type: "date", range: ["2025-01-01", "2026-01-01"], hoverformat: "%a %d %b %Y",
-      fixedrange: true },
-    yaxis: { ...axisStyle(), title: { text: "daily WAPE %", font: { color: css("--muted"), size: 12 } },
-      rangemode: "tozero", fixedrange: true },
+      fixedrange: true, dtick: narrow() ? "M2" : "M1", tickformat: "%b" },
+    yaxis: { ...axisStyle(), title: { text: narrow() ? "" : "daily WAPE %", font: { color: css("--muted"), size: 12 } },
+      rangemode: "tozero", fixedrange: true, ticksuffix: narrow() ? "%" : "" },
     shapes, annotations: ann };
   return Plotly.react("year", traces, layout, { ...CONFIG, displayModeBar: false });
-}
-
-function drawDetail() {
-  const tr = [];
-  for (const s of Object.keys(D.series)) {
-    if (!state.show[s] || !state.band[s]) continue;
-    const c = color(s);
-    tr.push({ type: "scattergl", mode: "lines", x: X, y: mapY(D.series[s].P90), line: { width: 0, color: c },
-      hoverinfo: "skip", showlegend: false, legendgroup: s });
-    tr.push({ type: "scattergl", mode: "lines", x: X, y: mapY(D.series[s].P10), line: { width: 0, color: c },
-      fill: "tonexty", fillcolor: rgba(c, 0.16), name: `${label(s)} P10-P90`, hoverinfo: "skip",
-      showlegend: false, legendgroup: s });
-  }
-  tr.push({ type: "scatter", mode: "lines", x: HOURLY.x, y: HOURLY.y, line: { color: css("--actual"), width: 1 },
-    hoverinfo: "skip", showlegend: false, opacity: 0.6 });
-  tr.push({ type: "scattergl", mode: "lines", name: "Actual load", x: X, y: mapY(D.actual), text: TZ,
-    line: { color: css("--actual"), width: 3.5 }, hovertemplate: "Actual: %{y:,} MW (%{text})<extra></extra>" });
-  for (const s of Object.keys(D.series)) {
-    if (!state.show[s]) continue;
-    tr.push({ type: "scattergl", mode: "lines", name: label(s), x: X, y: mapY(D.series[s].P50), legendgroup: s,
-      line: { color: color(s), width: 1.6 }, hovertemplate: `${label(s)}: %{y:,} MW<extra></extra>` });
-  }
-  const range = state.range || viewFor(state.day, state.mode).map((d) => d + " 00:00");
-  const layout = { ...baseLayout(), margin: { l: 56, r: 12, t: 10, b: 10 }, hovermode: "x unified",
-    legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } },
-    xaxis: { ...axisStyle(), type: "date", range, hoverformat: "%a %d %b %Y %H:%M",
-      rangeslider: { visible: true, thickness: 0.09, bgcolor: css("--panel"), bordercolor: css("--border") } },
-    yaxis: { ...axisStyle(), title: { text: "load (MW)", font: { color: css("--muted"), size: 12 } },
-      range: yRange(range[0].slice(0, 16), range[1].slice(0, 16)), tickformat: ",d" } };
-  return Plotly.react("detail", tr, layout, CONFIG);
 }
 
 // y range of everything drawn inside [lo, hi), padded, so the axis fits the visible window.
 function yRange(lo, hi) {
   let mn = Infinity, mx = -Infinity;
   const arrs = [D.actual];
-  for (const s of Object.keys(D.series)) {
+  for (const s of ids()) {
     if (!state.show[s]) continue;
     arrs.push(D.series[s].P50);
     if (state.band[s]) arrs.push(D.series[s].P10, D.series[s].P90);
@@ -253,8 +266,42 @@ function yRange(lo, hi) {
   return [mn - pad, mx + pad];
 }
 
+function drawDetail() {
+  const tr = [];
+  const range = currentRange();
+  for (const s of ids()) {
+    if (!state.show[s] || !state.band[s]) continue;
+    const c = color(s), bd = bandData(s, range[0], range[1]);
+    tr.push({ type: "scatter", mode: "lines", x: bd.x, y: bd.y90, line: { width: 0, color: c },
+      hoverinfo: "skip", showlegend: false, legendgroup: s });
+    tr.push({ type: "scatter", mode: "lines", x: bd.x, y: bd.y10, line: { width: 0, color: c },
+      fill: "tonexty", fillcolor: rgba(c, dark() ? 0.24 : 0.17), name: `${label(s)} P10-P90`, hoverinfo: "skip",
+      showlegend: false, legendgroup: s });
+  }
+  // Year shape for the range slider only: on a hidden second y axis whose range keeps it out of the main plot.
+  tr.push({ type: "scatter", mode: "lines", x: HOURLY.x, y: HOURLY.y, yaxis: "y2", line: { color: css("--actual"), width: 1 },
+    hoverinfo: "skip", showlegend: false });
+  tr.push({ type: "scattergl", mode: "lines", name: "Actual load", x: X, y: mapY(D.actual), text: TZ,
+    line: { color: css("--actual"), width: 3.5 }, hovertemplate: "Actual: %{y:,} MW (%{text})<extra></extra>" });
+  for (const s of ids()) {
+    if (!state.show[s]) continue;
+    tr.push({ type: "scattergl", mode: "lines", name: label(s), x: X, y: mapY(D.series[s].P50), legendgroup: s,
+      line: { color: color(s), width: 1.7 }, hovertemplate: `${label(s)}: %{y:,} MW<extra></extra>` });
+  }
+  const n = narrow();
+  const layout = { ...baseLayout(), margin: { l: n ? 40 : 56, r: 10, t: n ? 6 : 10, b: 10 }, hovermode: "x unified",
+    showlegend: !n, legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } },
+    xaxis: { ...axisStyle(), type: "date", range, hoverformat: "%a %d %b %Y %H:%M",
+      rangeslider: { visible: true, thickness: n ? 0.07 : 0.09, bgcolor: css("--panel"), bordercolor: css("--border"),
+        yaxis2: { rangemode: "auto" } } },
+    yaxis2: { overlaying: "y", visible: false, fixedrange: true, range: [1e9, 1e9 + 1] },
+    yaxis: { ...axisStyle(), title: { text: n ? "" : "load (MW)", font: { color: css("--muted"), size: 12 } },
+      range: yRange(range[0].slice(0, 16), range[1].slice(0, 16)), tickformat: n ? "~s" : ",d" } };
+  return Plotly.react("detail", tr, layout, CONFIG);
+}
+
 function wapeOver(lo, hi) {
-  const sums = Object.fromEntries(Object.keys(D.series).map((s) => [s, 0]));
+  const sums = Object.fromEntries(ids().map((s) => [s, 0]));
   let act = 0, n = 0;
   for (let k = 0; k < X.length; k++) {
     const i = SRC[k];
@@ -268,26 +315,25 @@ function fullYear(s) {
   return (100 * Y.sum_abs_err[s].reduce((a, b) => a + b, 0)) / Y.sum_actual.reduce((a, b) => a + b, 0);
 }
 function readout() {
-  const [lo, hi] = (state.range || viewFor(state.day, state.mode).map((d) => d + " 00:00")).map((r) => r.slice(0, 16));
+  const [lo, hi] = currentRange().map((r) => r.slice(0, 16));
   const r = wapeOver(lo, hi);
   const days = (r.n / 96).toFixed(r.n % 96 ? 1 : 0);
-  const rows = Object.keys(D.series).map((s) => `<tr><td><span class="swatch" style="background:${color(s)}"></span>
+  const rows = ids().map((s) => `<tr><td><span class="swatch" style="background:${color(s)}"></span>
     ${label(s)}</td><td>${isNaN(r.w[s]) ? "–" : r.w[s].toFixed(2) + "%"}</td><td>${fullYear(s).toFixed(2)}%</td></tr>`);
+  const span = narrow() ? `${lo.slice(5, 10)} → ${hi.slice(5, 10)}` : `${lo} → ${hi}`;
   document.getElementById("readout").innerHTML = `<thead><tr><th>Series</th>
-    <th>Visible range<br><span class="hint">${lo} → ${hi} (${days} d)</span></th><th>Full year 2025</th></tr></thead>
+    <th>Visible range<br><span class="hint">${span} (${days} d)</span></th><th>Full year</th></tr></thead>
     <tbody>${rows.join("")}</tbody>`;
-  document.getElementById("detail-title").textContent = state.mode === "day" && !state.range
-    ? `15-minute load and forecasts · ${new Date(state.day + "T12:00:00Z").toUTCString().slice(0, 16)}`
-    : "15-minute load and forecasts";
 }
 
 function buildControls() {
   const box = document.getElementById("controls");
-  const parts = [`<span class="series-ctl"><span class="swatch actual" style="background:var(--actual)"></span>Actual</span>`];
-  for (const s of Object.keys(D.series)) {
-    parts.push(`<span class="series-ctl"><label><input type="checkbox" data-show="${s}" checked>
-      <span class="swatch" data-sw="${s}"></span>${label(s)}</label>
-      <label class="band"><input type="checkbox" data-band="${s}"${s === Object.keys(D.series)[0] ? " checked" : ""}>band</label></span>`);
+  const firstDefault = ids().find((s) => D.series[s].default);
+  const parts = [`<span class="series-ctl"><span class="swatch actual" style="background:var(--actual)"></span>Actual load</span>`];
+  for (const s of ids()) {
+    parts.push(`<span class="series-ctl"><label><input type="checkbox" data-show="${s}"${D.series[s].default ? " checked" : ""}>
+      <span class="swatch" data-sw="${s}"></span><span data-lbl="${s}"></span></label>
+      <label class="band"><input type="checkbox" data-band="${s}"${s === firstDefault ? " checked" : ""}>band</label></span>`);
   }
   parts.push(`<span class="spacer"></span><span class="seg" role="group" aria-label="Zoom to">
     <button type="button" data-mode="day">Day</button><button type="button" data-mode="week">Week</button></span>`);
@@ -306,12 +352,13 @@ function buildControls() {
 }
 function paintControls() {
   document.querySelectorAll("[data-sw]").forEach((el) => { el.style.background = color(el.dataset.sw); });
+  document.querySelectorAll("[data-lbl]").forEach((el) => { el.textContent = label(el.dataset.lbl); });
   document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+  document.getElementById("theme").textContent = dark() ? "Light" : "Dark";
 }
 
 let syncing = false;
 async function redraw() {
-  dark = isDark();
   paintControls();
   syncing = true;
   await drawDetail();
@@ -319,6 +366,13 @@ async function redraw() {
   syncing = false;
   readout();
 }
+
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem("theme", t); } catch (e) { /* storage unavailable: theme is per page view */ }
+}
+try { const t = localStorage.getItem("theme"); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; }
+catch (e) { /* default light */ }
 
 async function main() {
   try {
@@ -334,10 +388,12 @@ async function main() {
   document.getElementById("detail").innerHTML = "";
   buildTime();
   state.day = D.default_view.start;
-  state.range = [D.default_view.start + " 00:00", addDays(D.default_view.end, 1) + " 00:00"];
+  state.mode = "week";
   buildControls();
   await redraw();
 
+  document.getElementById("theme").addEventListener("click", () => { setTheme(dark() ? "light" : "dark"); redraw(); });
+  NARROW.addEventListener("change", redraw);
   document.getElementById("year").on("plotly_click", (ev) => {
     if (!ev.points.length) return;
     state.day = String(ev.points[0].x).slice(0, 10); state.range = null; redraw();
@@ -348,12 +404,8 @@ async function main() {
     else if (Array.isArray(ev["xaxis.range"])) state.range = ev["xaxis.range"].map(String);
     else if (ev["xaxis.autorange"]) state.range = ["2025-01-01 00:00", "2026-01-01 00:00"];
     else return;
-    const yr = yRange(state.range[0].slice(0, 16), state.range[1].slice(0, 16));
-    syncing = true;
-    Promise.resolve(yr && Plotly.relayout("detail", { "yaxis.range": yr })).then(() => { syncing = false; });
-    drawYear(); readout();
+    redraw();  // refits the y axis and the band window to the new x range
   });
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
 }
 main();
 </script>
