@@ -126,6 +126,15 @@ def worker(config: Path = typer.Option(...), model: str = typer.Option(...), sta
     run_model_cells(exp, protocol, cards[model], cells, lambda c, rid, st, why, dur: _write_status(status_file, c, rid, st, why, dur))
 
 
+@app.command("export-dashboard")
+def export_dashboard(config: Path = typer.Option(None, "--config", help="default: configs/dashboard.yaml")) -> None:
+    """Scored 2025 points of the configured cells -> docs/dashboard/data.json + daily.json (WAPE checked)."""
+    from tsbench.dashboard import export_dashboard as export, load_dashboard_cfg
+
+    for sid, w in export(load_protocol(), load_dashboard_cfg(config)).items():
+        typer.echo(f"{sid:20} full-year WAPE {w:.4f}% (matches results)")
+
+
 @app.command()
 def summarize(config: Path = typer.Option(..., "--config")) -> None:
     from tsbench.summarize import summarize as summ

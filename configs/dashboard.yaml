@@ -1,0 +1,13 @@
+# Series exported by `bench export-dashboard` to docs/dashboard/ (data.json, daily.json).
+# Each entry is one run cell under outputs/runs/<model>/<covariates>/ctxNNd (baselines: covariates "default", no
+# context). Colours come from the model cards. The first entry is drawn first; edit this list to change the dashboard.
+series:
+  - {model: timestral-123m, covariates: full, context_days: 75}
+  - {model: t0-gamma, covariates: full, context_days: 75}
+  - {model: chronos-2, covariates: full, context_days: 60}
+  - {model: elia_reference, covariates: default}
+quantiles: [P10, P50, P90]
+default_view: {start: "2025-11-10", end: "2025-11-16"}   # local dates, inclusive
+check_against: results/leaderboard/results_wide.csv        # full-year WAPE must match to `tolerance_pp`
+tolerance_pp: 0.01
+out_dir: docs/dashboard
