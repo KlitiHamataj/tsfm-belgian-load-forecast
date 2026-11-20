@@ -26,7 +26,7 @@ from tsbench.config import ROOT
 DASH = ROOT / "docs" / "dashboard"
 OUT = ROOT / "docs" / "img"
 MODEL, REF = "timestral-123m", "elia_reference"
-ACTUAL_COLOR, MUTED, HOLIDAY, NEAR_BLACK = "#8c8c8c", "#555b66", "#b0485a", "#1a1a1a"
+ACTUAL_COLOR, MUTED, HOLIDAY = "#000000", "#555b66", "#b0485a"
 SHORT = {"New Year's Day": "New Year", "Easter Monday": "Easter Mon", "Labor Day": "Labour Day",
          "Ascension Day": "Ascension", "Pentecost Monday": "Whit Monday", "National Day": "National Day",
          "Assumption Day": "Assumption", "Armistice Day": "Armistice", "Christmas Day": "Christmas"}
@@ -42,7 +42,7 @@ plt.rcParams.update({"font.size": 20, "axes.titlesize": 26, "axes.labelsize": 20
 
 
 def color(series: dict) -> str:
-    return NEAR_BLACK if series["color"].lower() == "#000000" else series["color"]
+    return series["color"]  # card colour (Okabe-Ito for the dashboard series)
 
 
 def style(series: dict) -> str:
@@ -85,9 +85,9 @@ def week_png(data, daily, local) -> None:
             ax.text(pd.Timestamp(d) + pd.Timedelta(hours=12), 0.985, f"{SHORT.get(name, name)}\n(public holiday)",
                     transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=16, color=HOLIDAY)
     ax.fill_between(t, p10, p90, color=color(s), alpha=0.18, lw=0, label=f"{s['label']}: P10-P90 band")
-    ax.plot(t, a, color=ACTUAL_COLOR, lw=4.5, label="Actual load", solid_capstyle="round")
-    ax.plot(t, ref, color=color(r), lw=2.2, ls=style(r), label=f"{r['label']}  ·  week WAPE {wape(a, ref):.2f}%")
-    ax.plot(t, p50, color=color(s), lw=2.4, ls=style(s), label=f"{s['label']}  ·  week WAPE {wape(a, p50):.2f}%")
+    ax.plot(t, a, color=ACTUAL_COLOR, lw=3.6, label="Actual load", solid_capstyle="round")
+    ax.plot(t, ref, color=color(r), lw=2.6, ls=style(r), label=f"{r['label']}  ·  week WAPE {wape(a, ref):.2f}%")
+    ax.plot(t, p50, color=color(s), lw=2.6, ls=style(s), label=f"{s['label']}  ·  week WAPE {wape(a, p50):.2f}%")
     ax.set_xlim(lo, hi)
     ax.xaxis.set_major_locator(mdates.DayLocator())  # gridlines at midnight, labels centred on each day
     ax.xaxis.set_major_formatter(matplotlib.ticker.NullFormatter())
@@ -121,9 +121,12 @@ def year_png(data, daily) -> None:
             first = d == dates[0]  # 1 Jan sits on the left edge: label inside the axes
             ax.text(d, 0.99, SHORT.get(name, name), transform=ax.get_xaxis_transform(), rotation=90,
                     ha="left" if first else "right", va="top", fontsize=13, color=HOLIDAY)
-    for k, lw in ((REF, 1.6), (MODEL, 1.8)):
+    for k in (REF, MODEL):  # faint daily values behind a centred 7-day mean (same as the dashboard)
         sr = data["series"][k]
-        ax.plot(dates, daily["wape"][k], color=color(sr), lw=lw, ls=style(sr), label=f"{sr['label']}  ·  2025 WAPE {full[k]:.2f}%")
+        day = pd.Series(daily["wape"][k], index=dates)
+        ax.scatter(dates, day, s=9, color=color(sr), alpha=0.28, lw=0, zorder=1)
+        ax.plot(dates, day.rolling(7, center=True, min_periods=1).mean(), color=color(sr), lw=2.6, ls=style(sr),
+                zorder=2, label=f"{sr['label']}  ·  2025 WAPE {full[k]:.2f}%")
     ax.set_xlim(pd.Timestamp("2025-01-01"), pd.Timestamp("2025-12-31"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
@@ -134,7 +137,7 @@ def year_png(data, daily) -> None:
     ax.set_ylabel("Daily WAPE (%) - lower is better")
     fig.legend(loc="upper left", bbox_to_anchor=(0.04, 0.225), frameon=False, handlelength=2.2, fontsize=17)
     frame(fig, "Day by day through 2025: where zero-shot\nforecasting struggles",
-          "Daily error of each day-ahead forecast (15-min, next local day);\nred lines mark weekday public holidays.")
+          "Daily error (dots) and its 7-day mean (lines) for each day-ahead\nforecast; red lines mark weekday public holidays.")
     fig.savefig(OUT / "linkedin_year.png", facecolor="white")
     plt.close(fig)
 
