@@ -27,6 +27,10 @@ ARROW = "↓"
 ID_COLS = ["model", "covariates", "ctx (days)"]
 README_EXPERIMENT = "leaderboard"  # only the main experiment writes the README results block
 README_START, README_END = "<!-- results:start -->", "<!-- results:end -->"
+HOLIDAYS_START, HOLIDAYS_END = "<!-- holidays:start -->", "<!-- holidays:end -->"
+HOLIDAY_DAILY_MODELS = ("timestral-123m", "t0-gamma", "chronos-2")  # + protocol.reference_model
+# English names from `holidays.Belgium`, with British spellings / the usual Belgian English names.
+HOLIDAY_NAMES = {"Labor Day": "Labour Day", "Pentecost": "Whit Sunday", "Pentecost Monday": "Whit Monday"}
 RESULTS_DIR = ROOT / "results"  # tracked copy of each experiment's aggregates (outputs/ is gitignored)
 PUBLISHED = ["summary.md", "results_wide.csv", "results_long.csv"]
 
@@ -315,6 +319,7 @@ def summarize(exp: Experiment, protocol: Protocol, cards: dict[str, ModelCard]) 
     _figures(W, runs, cards, out)
     if exp.name == README_EXPERIMENT:
         _write_readme(runs, protocol, cards, nb, seed, skipped)
+        _write_readme_holidays(runs, protocol)
     _publish(out, RESULTS_DIR / exp.name)
     log.info("wrote %s", out)
 
@@ -427,11 +432,7 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
     if README_START not in text or README_END not in text:
         log.warning("README has no results markers; skipping")
         return
-    best: dict[str, dict] = {}
-    for r in runs:
-        k = r["cell"].model_id
-        if k not in best or r["metrics"]["wape_pct"] < best[k]["metrics"]["wape_pct"]:
-            best[k] = r
+    best = _best_per_model(runs)
     ref = best.get(protocol.reference_model)
     rows = []
     for r in sorted(best.values(), key=lambda r: r["metrics"]["wape_pct"]):
@@ -456,8 +457,7 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
         rows.append(row)
     ranked = sorted(best.values(), key=lambda r: r["metrics"]["wape_pct"])
     def _flag(r):
-        c = r["card"]
-        return bool(c.weights_date and c.weights_date > protocol.scored_end and c.training_data_disclosed is False)
+        return _flagged(r["card"], protocol)
     caveat = ""
     if any(_flag(r) for r in ranked):
         caveat = (f"† Weights date after the scored period (> {protocol.scored_end}) and real training data not disclosed: "
@@ -505,3 +505,98 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
     start, end = text.index(README_START), text.index(README_END) + len(README_END)
     readme.write_text(text[:start] + block + text[end:])
     log.info("updated README results")
+
+
+def _best_per_model(runs) -> dict[str, dict]:
+    """Lowest pooled WAPE run per model (the rows of the README results table)."""
+    best: dict[str, dict] = {}
+    for r in runs:
+        k = r["cell"].model_id
+        if k not in best or r["metrics"]["wape_pct"] < best[k]["metrics"]["wape_pct"]:
+            best[k] = r
+    return best
+
+
+def _flagged(card: ModelCard, protocol: Protocol) -> bool:
+    return bool(card.weights_date and card.weights_date > protocol.scored_end and card.training_data_disclosed is False)
+
+
+def holiday_list(protocol: Protocol) -> pd.DataFrame:
+    """Belgian public holidays in the scored period: date, weekday, English name, is_weekend."""
+    import holidays
+
+    start, end = pd.Timestamp(protocol.scored_start).date(), pd.Timestamp(protocol.scored_end).date()
+    be = holidays.Belgium(years=range(start.year, end.year + 1), language="en_US")
+    rows = [{"date": d, "weekday": d.strftime("%a"), "name": HOLIDAY_NAMES.get(n, n), "is_weekend": d.weekday() >= 5}
+            for d, n in sorted(be.items()) if start <= d <= end]
+    return pd.DataFrame(rows)
+
+
+def daily_wape(points: pd.DataFrame, timezone: str) -> pd.Series:
+    """Per scored local calendar day: sum|actual - P50| / sum|actual| * 100 over the scored points (full precision)."""
+    s = points[points["is_scored"]]
+    day = s["timestamp"].dt.tz_convert(timezone).dt.date
+    err = (s["actual"] - s["P50"]).abs().groupby(day).sum()
+    act = s["actual"].abs().groupby(day).sum()
+    return err / act * 100
+
+
+def _write_readme_holidays(runs, protocol: Protocol) -> None:
+    """Replace the README block between the holiday markers: slice WAPE per model and daily WAPE per holiday."""
+    readme = ROOT / "README.md"
+    text = readme.read_text()
+    if HOLIDAYS_START not in text or HOLIDAYS_END not in text:
+        log.warning("README has no holiday markers; skipping")
+        return
+    best = _best_per_model(runs)
+    ranked = sorted(best.values(), key=lambda r: r["metrics"]["wape_pct"])
+    hol = holiday_list(protocol)
+    n_wd = int((~hol.is_weekend).sum())
+
+    def name(r) -> str:
+        return f"{r['cell'].model_id} †" if _flagged(r["card"], protocol) else r["cell"].model_id
+
+    rows = []
+    for r in ranked:
+        w = r["windows"]
+        sl = M.slice_wape(w)
+        flagged_days = set(pd.to_datetime(w.loc[w.is_holiday, "scored_date"]).dt.date)
+        if flagged_days != set(hol.date):
+            raise RuntimeError(f"{r['cell'].label}: holiday windows differ from the holidays package list")
+        rows.append({"model": name(r), "ctx (days)": _ids(r)["ctx (days)"],
+                     f"full year {ARROW} %": r["metrics"]["wape_pct"],
+                     f"non-holiday {ARROW} %": sl["non_holiday"],
+                     f"weekday holidays ({n_wd} days) {ARROW} %": sl["holiday_weekday"]})
+
+    daily = hol.assign(weekday=[f"{w} (weekend)" if we else w for w, we in zip(hol.weekday, hol.is_weekend)])
+    daily = daily.drop(columns="is_weekend").rename(columns={"name": "holiday"})
+    for mid in [*HOLIDAY_DAILY_MODELS, protocol.reference_model]:
+        run = best.get(mid)
+        if run is None:
+            continue
+        pts = pd.read_parquet(run["cell"].folder / "points.parquet", columns=["timestamp", "is_scored", "actual", "P50"])
+        dw = daily_wape(pts, protocol.timezone)
+        chk = run["windows"].set_index(pd.to_datetime(run["windows"]["scored_date"]).dt.date)["window_wape"]
+        if not (dw.reindex(chk.index) - chk).abs().max() < 1e-9:
+            raise RuntimeError(f"{r['cell'].label}: daily WAPE from points.parquet disagrees with windows.csv")
+        daily[f"{name(run)} {ARROW} %"] = [dw[d] for d in hol.date]
+    daily["date"] = [d.isoformat() for d in daily["date"]]
+
+    block = "\n".join([
+        HOLIDAYS_START,
+        f"_Auto-filled by `bench summarize`. Same rows as the results table (best configuration per model), pooled WAPE "
+        f"on the slices of 2025: non-holiday = all days that are not public holidays; weekday holidays = the {n_wd} "
+        "public holidays on Mon–Fri. † = contamination caveat (see Results)._",
+        "",
+        pd.DataFrame(rows).to_markdown(index=False, floatfmt=".2f"),
+        "",
+        "Daily WAPE on every 2025 Belgian public holiday (scored local day, P50, best configuration per model):",
+        "",
+        daily.to_markdown(index=False, floatfmt=".2f"),
+        "",
+        "Single days are noisy; this table is descriptive. Holidays come from the `holidays` package (Belgium).",
+        HOLIDAYS_END,
+    ])
+    start, end = text.index(HOLIDAYS_START), text.index(HOLIDAYS_END) + len(HOLIDAYS_END)
+    readme.write_text(text[:start] + block + text[end:])
+    log.info("updated README holidays")

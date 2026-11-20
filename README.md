@@ -26,7 +26,7 @@ Full experiment summaries (context sweeps, slices, paired tests, figures) are tr
 
 ## Results
 <!-- results:start -->
-_Auto-filled by `bench summarize` (2026-11-20 18:15 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in [the experiment summary](results/leaderboard/summary.md)._
+_Auto-filled by `bench summarize` (2026-11-20 20:06 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in [the experiment summary](results/leaderboard/summary.md)._
 
 | model                   | covariates   | ctx (days)   |   WAPE ↓ % | CI95 %         |   median-window WAPE ↓ % | Δ vs elia_reference (pp) [CI95]   | days better   | CRPS≈ ↓ MW   |   per window ↓ s |
 |:------------------------|:-------------|:-------------|-----------:|:---------------|-------------------------:|:----------------------------------|:--------------|:-------------|-----------------:|
@@ -94,6 +94,45 @@ uv run python -m http.server -d docs      # then open http://localhost:8000/dash
 ```
 The page loads its JSON with `fetch`, which browsers block for files opened from disk, hence the local server.
 The export (≈2.4 MB, integer MW, scored points only) is committed; raw data is not.
+
+## Holidays
+<!-- holidays:start -->
+_Auto-filled by `bench summarize`. Same rows as the results table (best configuration per model), pooled WAPE on the slices of 2025: non-holiday = all days that are not public holidays; weekday holidays = the 9 public holidays on Mon–Fri. † = contamination caveat (see Results)._
+
+| model                   | ctx (days)   |   full year ↓ % |   non-holiday ↓ % |   weekday holidays (9 days) ↓ % |
+|:------------------------|:-------------|----------------:|------------------:|--------------------------------:|
+| timestral-123m †        | 75           |            2.88 |              2.77 |                            7.78 |
+| t0-gamma †              | 75           |            2.88 |              2.76 |                            7.16 |
+| chronos-2               | 60           |            2.96 |              2.87 |                            7.06 |
+| timestral-209m †        | 60           |            2.97 |              2.83 |                            9.24 |
+| timestral-28m †         | 60           |            3.02 |              2.82 |                           11.77 |
+| elia_reference          | -            |            3.04 |              3.02 |                            3.42 |
+| timestral-5m †          | 90           |            3.29 |              3.09 |                           12.19 |
+| exp_weighted_seasonal   | -            |            3.84 |              3.83 |                            4.07 |
+| seasonal_moving_average | -            |            4.24 |              4.24 |                            4.13 |
+| weekly_persistence      | -            |            4.99 |              4.81 |                           13.07 |
+| daily_persistence       | -            |            6.21 |              6.13 |                            9.24 |
+| last_value              | -            |           12.22 |             12.13 |                           15.52 |
+
+Daily WAPE on every 2025 Belgian public holiday (scored local day, P50, best configuration per model):
+
+| date       | weekday       | holiday         |   timestral-123m † ↓ % |   t0-gamma † ↓ % |   chronos-2 ↓ % |   elia_reference ↓ % |
+|:-----------|:--------------|:----------------|-----------------------:|-----------------:|----------------:|---------------------:|
+| 2025-01-01 | Wed           | New Year's Day  |                   4.15 |             3.53 |            4.44 |                 5.24 |
+| 2025-04-20 | Sun (weekend) | Easter Sunday   |                   2.50 |            11.64 |            3.30 |                 2.62 |
+| 2025-04-21 | Mon           | Easter Monday   |                   6.30 |             6.63 |            6.80 |                 2.29 |
+| 2025-05-01 | Thu           | Labour Day      |                  12.04 |            11.34 |           10.89 |                 2.24 |
+| 2025-05-29 | Thu           | Ascension Day   |                   3.50 |             3.69 |            4.86 |                 1.99 |
+| 2025-06-08 | Sun (weekend) | Whit Sunday     |                   3.34 |             6.87 |            5.48 |                 3.33 |
+| 2025-06-09 | Mon           | Whit Monday     |                   8.79 |             4.52 |           10.54 |                 2.59 |
+| 2025-07-21 | Mon           | National Day    |                   5.73 |             4.51 |            7.13 |                 3.54 |
+| 2025-08-15 | Fri           | Assumption Day  |                  14.77 |            15.32 |            8.38 |                 2.18 |
+| 2025-11-01 | Sat (weekend) | All Saints' Day |                   2.71 |             2.53 |            3.28 |                 4.24 |
+| 2025-11-11 | Tue           | Armistice Day   |                   6.87 |             9.04 |            7.80 |                 4.97 |
+| 2025-12-25 | Thu           | Christmas Day   |                   7.75 |             5.59 |            3.48 |                 5.24 |
+
+Single days are noisy; this table is descriptive. Holidays come from the `holidays` package (Belgium).
+<!-- holidays:end -->
 
 ## Quickstart
 ```bash
