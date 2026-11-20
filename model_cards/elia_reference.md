@@ -2,7 +2,8 @@
 id: elia_reference
 family: baseline
 kind: baseline
-display_name: Elia day-ahead 6PM forecast
+display_name: Elia published day-ahead forecast
+short_name: Elia (published)
 publisher: this repo
 license: n/a
 source: {}
@@ -26,7 +27,7 @@ Acceptance gate: pooled WAPE on 2025 = 3.036% (+/-0.001). No context, no covaria
 adapter the reference columns because the card says `needs_reference`.
 
 ## Training data and cutoff
-- **Not a model trained by this repo.** It is Elia's operational "Day-ahead 6PM forecast" read from the Elia ods001 file;
+- **Not a model trained by this repo.** It is Elia's published day-ahead forecast (column "Day-ahead 6PM forecast") read from the Elia ods001 file;
   Elia's model, its training data and its cutoff are not public.
 - It is issued day-ahead (the column is Elia's forecast as of 18:00 the day before), so it does not use the actuals it is
   scored against. It is the reference for the 3.036% WAPE gate, not a contamination-tested model. Checked 2026-10-20.

@@ -319,7 +319,7 @@ def summarize(exp: Experiment, protocol: Protocol, cards: dict[str, ModelCard]) 
     _figures(W, runs, cards, out)
     if exp.name == README_EXPERIMENT:
         _write_readme(runs, protocol, cards, nb, seed, skipped)
-        _write_readme_holidays(runs, protocol)
+        _write_readme_holidays(runs, protocol, cards)
     _publish(out, RESULTS_DIR / exp.name)
     log.info("wrote %s", out)
 
@@ -434,6 +434,7 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
         return
     best = _best_per_model(runs)
     ref = best.get(protocol.reference_model)
+    ref_name = _shown(protocol.reference_model, cards)
     rows = []
     for r in sorted(best.values(), key=lambda r: r["metrics"]["wape_pct"]):
         m = r["metrics"]
@@ -442,14 +443,15 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
         ids_ = _ids(r)
         if flagged:
             ids_["model"] = f"{ids_['model']} †"
+        ids_["model"] = ids_["model"].replace(r["cell"].model_id, _shown(r["cell"].model_id, cards), 1)
         row = {**ids_, f"WAPE {ARROW} %": f"{m['wape_pct']:.2f}", "CI95 %": f"[{m['wape_ci95_lo']:.2f}, {m['wape_ci95_hi']:.2f}]",
                f"median-window WAPE {ARROW} %": f"{m['median_window_wape_pct']:.2f}"}
         if ref is not None and r is not ref:
             d = M.paired_delta(r["windows"], ref["windows"], nb, seed)
-            row[f"Δ vs {protocol.reference_model} (pp) [CI95]"] = f"{d['delta_wape']:+.2f} [{d['delta_ci_lo']:+.2f}, {d['delta_ci_hi']:+.2f}]"
+            row[f"Δ vs {ref_name} (pp) [CI95]"] = f"{d['delta_wape']:+.2f} [{d['delta_ci_lo']:+.2f}, {d['delta_ci_hi']:+.2f}]"
             row["days better"] = f"{d['days_a_better']}/{d['n_days']}"
         else:
-            row[f"Δ vs {protocol.reference_model} (pp) [CI95]"] = "ref"
+            row[f"Δ vs {ref_name} (pp) [CI95]"] = "ref"
             row["days better"] = "-"
         crps = m.get("crps_approx_mw")
         row[f"CRPS≈ {ARROW} MW"] = f"{crps:.0f}" if crps == crps and crps is not None else "-"
@@ -486,14 +488,14 @@ def _write_readme(runs, protocol: Protocol, cards: dict[str, ModelCard], nb: int
     gate = ""
     if ref is not None:
         w, tgt, tol = ref["metrics"]["wape_pct"], protocol.metrics.elia_reference_wape_pct, protocol.metrics.elia_reference_tolerance
-        gate = f"Gate: {protocol.reference_model} WAPE {w:.3f}% (target {tgt}% ± {tol}) → {'PASS' if abs(w - tgt) <= tol else 'FAIL'}. "
+        gate = f"Gate: {ref_name} WAPE {w:.3f}% (target {tgt}% ± {tol}) → {'PASS' if abs(w - tgt) <= tol else 'FAIL'}. "
     failing = [mid for mid in best if load_gates(mid) and not all(load_gates(mid)[k]["passed"] for k in load_gates(mid))]
     gate += "Leakage and determinism: " + ("all recorded gates pass." if not failing else f"FAILING for {', '.join(failing)}.")
     block = "\n".join([
         README_START,
         f"_Auto-filled by `bench summarize` ({pd.Timestamp.now('UTC'):%Y-%m-%d %H:%M} UTC). Best configuration per model on "
         f"2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than "
-        f"{protocol.reference_model}). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is "
+        f"{ref_name}). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is "
         f"optimistic; see the full context sweep in [the experiment summary](results/{README_EXPERIMENT}/summary.md)._",
         "",
         _md(pd.DataFrame(rows)),
@@ -515,6 +517,12 @@ def _best_per_model(runs) -> dict[str, dict]:
         if k not in best or r["metrics"]["wape_pct"] < best[k]["metrics"]["wape_pct"]:
             best[k] = r
     return best
+
+
+def _shown(model_id: str, cards: dict[str, ModelCard]) -> str:
+    """Name shown in README tables: the card's short_name if it has one, else the id."""
+    c = cards.get(model_id)
+    return (c.short_name if c else None) or model_id
 
 
 def _flagged(card: ModelCard, protocol: Protocol) -> bool:
@@ -541,7 +549,7 @@ def daily_wape(points: pd.DataFrame, timezone: str) -> pd.Series:
     return err / act * 100
 
 
-def _write_readme_holidays(runs, protocol: Protocol) -> None:
+def _write_readme_holidays(runs, protocol: Protocol, cards: dict[str, ModelCard]) -> None:
     """Replace the README block between the holiday markers: slice WAPE per model and daily WAPE per holiday."""
     readme = ROOT / "README.md"
     text = readme.read_text()
@@ -554,7 +562,8 @@ def _write_readme_holidays(runs, protocol: Protocol) -> None:
     n_wd = int((~hol.is_weekend).sum())
 
     def name(r) -> str:
-        return f"{r['cell'].model_id} †" if _flagged(r["card"], protocol) else r["cell"].model_id
+        shown = _shown(r["cell"].model_id, cards)
+        return f"{shown} †" if _flagged(r["card"], protocol) else shown
 
     rows = []
     for r in ranked:

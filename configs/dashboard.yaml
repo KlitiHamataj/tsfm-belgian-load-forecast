@@ -7,7 +7,7 @@ series:
   - {model: timestral-123m, covariates: full, context_days: 75, short: Timestral 123M, default: true}
   - {model: t0-gamma, covariates: full, context_days: 75, short: t0-gamma}
   - {model: chronos-2, covariates: full, context_days: 60, short: Chronos-2}
-  - {model: elia_reference, covariates: default, label: Elia operational forecast (reference), short: Elia, default: true, dash: true}
+  - {model: elia_reference, covariates: default, label: Elia published day-ahead forecast (reference), short: Elia (published), default: true, dash: true}
 quantiles: [P10, P50, P90]
 # Default view = the Monday-Sunday week of the scored year with no public holiday whose WAPE is closest to the
 # full-year WAPE, summed over the `default: true` series (minimum sum of absolute differences).

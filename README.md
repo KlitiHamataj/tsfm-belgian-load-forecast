@@ -6,7 +6,7 @@ day-ahead forecast on Belgian electricity load, using Elia's public
 15-minute data.
 
 Over all 365 days of 2025, the best foundation models with calendar and
-temperature covariates land on par with Elia's forecast: Chronos-2 scores
+temperature covariates land on par with Elia's published day-ahead forecast: Chronos-2 scores
 2.96% WAPE against Elia's 3.04%, a gap that sits inside the confidence
 intervals. The lowest scores, about 2.88% from Timestral 123M and t0-gamma,
 come with a caveat: both models' weights were released after the test year,
@@ -18,7 +18,7 @@ forecast of 2025 against the actual load, daily WAPE through the year, holidays 
 
 ![Pooled WAPE on 2025, best configuration per model, with 95% confidence intervals](docs/img/wape_by_model.png)
 
-Models: Chronos-2, Mistral Timestral 5M/28M/123M/209M and t0-gamma, versus baselines and Elia's day-ahead forecast.
+Models: Chronos-2, Mistral Timestral 5M/28M/123M/209M and t0-gamma, versus baselines and Elia's published day-ahead forecast.
 CPU only, `uv`, Python 3.12. Adding a model = one adapter file + one model card + its id in the `tsfm-all` group.
 Full experiment summaries (context sweeps, slices, paired tests, figures) are tracked in [results/](results/);
 `bench summarize` writes them there. Regenerate the chart with `uv run python scripts/plot_leaderboard.py` after
@@ -26,26 +26,26 @@ Full experiment summaries (context sweeps, slices, paired tests, figures) are tr
 
 ## Results
 <!-- results:start -->
-_Auto-filled by `bench summarize` (2026-11-20 20:06 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in [the experiment summary](results/leaderboard/summary.md)._
+_Auto-filled by `bench summarize` (2026-11-20 20:10 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than Elia (published)). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in [the experiment summary](results/leaderboard/summary.md)._
 
-| model                   | covariates   | ctx (days)   |   WAPE ↓ % | CI95 %         |   median-window WAPE ↓ % | Δ vs elia_reference (pp) [CI95]   | days better   | CRPS≈ ↓ MW   |   per window ↓ s |
-|:------------------------|:-------------|:-------------|-----------:|:---------------|-------------------------:|:----------------------------------|:--------------|:-------------|-----------------:|
-| timestral-123m †        | full         | 75           |       2.88 | [2.67, 3.09]   |                     2.32 | -0.16 [-0.36, +0.04]              | 215/365       | 208          |              7   |
-| t0-gamma †              | full         | 75           |       2.88 | [2.68, 3.10]   |                     2.2  | -0.15 [-0.35, +0.04]              | 224/365       | 210          |              6   |
-| chronos-2               | full         | 60           |       2.96 | [2.75, 3.17]   |                     2.38 | -0.07 [-0.27, +0.12]              | 211/365       | 214          |              2   |
-| timestral-209m †        | full         | 60           |       2.97 | [2.75, 3.19]   |                     2.35 | -0.07 [-0.28, +0.14]              | 214/365       | 216          |              8   |
-| timestral-28m †         | full         | 60           |       3.02 | [2.78, 3.25]   |                     2.29 | -0.02 [-0.24, +0.20]              | 212/365       | 220          |              1   |
-| elia_reference          | -            | -            |       3.04 | [2.85, 3.23]   |                     2.55 | ref                               | -             | -            |              0   |
-| timestral-5m †          | full         | 90           |       3.29 | [3.06, 3.54]   |                     2.56 | +0.25 [+0.03, +0.48]              | 182/365       | 238          |              0.6 |
-| exp_weighted_seasonal   | -            | -            |       3.84 | [3.57, 4.12]   |                     3    | +0.80 [+0.56, +1.04]              | 142/365       | -            |              0   |
-| seasonal_moving_average | -            | -            |       4.24 | [3.94, 4.56]   |                     3.21 | +1.21 [+0.93, +1.48]              | 127/365       | -            |              0   |
-| weekly_persistence      | -            | -            |       4.99 | [4.60, 5.39]   |                     3.61 | +1.95 [+1.59, +2.31]              | 92/365        | -            |              0   |
-| daily_persistence       | -            | -            |       6.21 | [5.81, 6.63]   |                     5.08 | +3.18 [+2.77, +3.61]              | 86/365        | -            |              0   |
-| last_value              | -            | -            |      12.22 | [11.84, 12.59] |                    11.55 | +9.18 [+8.78, +9.58]              | 2/365         | -            |              0   |
+| model                   | covariates   | ctx (days)   |   WAPE ↓ % | CI95 %         |   median-window WAPE ↓ % | Δ vs Elia (published) (pp) [CI95]   | days better   | CRPS≈ ↓ MW   |   per window ↓ s |
+|:------------------------|:-------------|:-------------|-----------:|:---------------|-------------------------:|:------------------------------------|:--------------|:-------------|-----------------:|
+| timestral-123m †        | full         | 75           |       2.88 | [2.67, 3.09]   |                     2.32 | -0.16 [-0.36, +0.04]                | 215/365       | 208          |              7   |
+| t0-gamma †              | full         | 75           |       2.88 | [2.68, 3.10]   |                     2.2  | -0.15 [-0.35, +0.04]                | 224/365       | 210          |              6   |
+| chronos-2               | full         | 60           |       2.96 | [2.75, 3.17]   |                     2.38 | -0.07 [-0.27, +0.12]                | 211/365       | 214          |              2   |
+| timestral-209m †        | full         | 60           |       2.97 | [2.75, 3.19]   |                     2.35 | -0.07 [-0.28, +0.14]                | 214/365       | 216          |              8   |
+| timestral-28m †         | full         | 60           |       3.02 | [2.78, 3.25]   |                     2.29 | -0.02 [-0.24, +0.20]                | 212/365       | 220          |              1   |
+| Elia (published)        | -            | -            |       3.04 | [2.85, 3.23]   |                     2.55 | ref                                 | -             | -            |              0   |
+| timestral-5m †          | full         | 90           |       3.29 | [3.06, 3.54]   |                     2.56 | +0.25 [+0.03, +0.48]                | 182/365       | 238          |              0.6 |
+| exp_weighted_seasonal   | -            | -            |       3.84 | [3.57, 4.12]   |                     3    | +0.80 [+0.56, +1.04]                | 142/365       | -            |              0   |
+| seasonal_moving_average | -            | -            |       4.24 | [3.94, 4.56]   |                     3.21 | +1.21 [+0.93, +1.48]                | 127/365       | -            |              0   |
+| weekly_persistence      | -            | -            |       4.99 | [4.60, 5.39]   |                     3.61 | +1.95 [+1.59, +2.31]                | 92/365        | -            |              0   |
+| daily_persistence       | -            | -            |       6.21 | [5.81, 6.63]   |                     5.08 | +3.18 [+2.77, +3.61]                | 86/365        | -            |              0   |
+| last_value              | -            | -            |      12.22 | [11.84, 12.59] |                    11.55 | +9.18 [+8.78, +9.58]                | 2/365         | -            |              0   |
 
 † Weights date after the scored period (> 2025-12-31) and real training data not disclosed: the 2025 Elia data may have been seen in training (see each card's "Training data and cutoff"). **Contamination caveat: timestral-123m, t0-gamma score below chronos-2 (within noise with covariates) here. The weights of chronos-2 date from 2025-10-30 and its disclosed training data lists no Belgian load, so this ranking is not contamination-safe.**
 
-Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and determinism: all recorded gates pass.
+Gate: Elia (published) WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and determinism: all recorded gates pass.
 <!-- results:end -->
 
 ## Findings
@@ -106,7 +106,7 @@ _Auto-filled by `bench summarize`. Same rows as the results table (best configur
 | chronos-2               | 60           |            2.96 |              2.87 |                            7.06 |
 | timestral-209m †        | 60           |            2.97 |              2.83 |                            9.24 |
 | timestral-28m †         | 60           |            3.02 |              2.82 |                           11.77 |
-| elia_reference          | -            |            3.04 |              3.02 |                            3.42 |
+| Elia (published)        | -            |            3.04 |              3.02 |                            3.42 |
 | timestral-5m †          | 90           |            3.29 |              3.09 |                           12.19 |
 | exp_weighted_seasonal   | -            |            3.84 |              3.83 |                            4.07 |
 | seasonal_moving_average | -            |            4.24 |              4.24 |                            4.13 |
@@ -116,20 +116,20 @@ _Auto-filled by `bench summarize`. Same rows as the results table (best configur
 
 Daily WAPE on every 2025 Belgian public holiday (scored local day, P50, best configuration per model):
 
-| date       | weekday       | holiday         |   timestral-123m † ↓ % |   t0-gamma † ↓ % |   chronos-2 ↓ % |   elia_reference ↓ % |
-|:-----------|:--------------|:----------------|-----------------------:|-----------------:|----------------:|---------------------:|
-| 2025-01-01 | Wed           | New Year's Day  |                   4.15 |             3.53 |            4.44 |                 5.24 |
-| 2025-04-20 | Sun (weekend) | Easter Sunday   |                   2.50 |            11.64 |            3.30 |                 2.62 |
-| 2025-04-21 | Mon           | Easter Monday   |                   6.30 |             6.63 |            6.80 |                 2.29 |
-| 2025-05-01 | Thu           | Labour Day      |                  12.04 |            11.34 |           10.89 |                 2.24 |
-| 2025-05-29 | Thu           | Ascension Day   |                   3.50 |             3.69 |            4.86 |                 1.99 |
-| 2025-06-08 | Sun (weekend) | Whit Sunday     |                   3.34 |             6.87 |            5.48 |                 3.33 |
-| 2025-06-09 | Mon           | Whit Monday     |                   8.79 |             4.52 |           10.54 |                 2.59 |
-| 2025-07-21 | Mon           | National Day    |                   5.73 |             4.51 |            7.13 |                 3.54 |
-| 2025-08-15 | Fri           | Assumption Day  |                  14.77 |            15.32 |            8.38 |                 2.18 |
-| 2025-11-01 | Sat (weekend) | All Saints' Day |                   2.71 |             2.53 |            3.28 |                 4.24 |
-| 2025-11-11 | Tue           | Armistice Day   |                   6.87 |             9.04 |            7.80 |                 4.97 |
-| 2025-12-25 | Thu           | Christmas Day   |                   7.75 |             5.59 |            3.48 |                 5.24 |
+| date       | weekday       | holiday         |   timestral-123m † ↓ % |   t0-gamma † ↓ % |   chronos-2 ↓ % |   Elia (published) ↓ % |
+|:-----------|:--------------|:----------------|-----------------------:|-----------------:|----------------:|-----------------------:|
+| 2025-01-01 | Wed           | New Year's Day  |                   4.15 |             3.53 |            4.44 |                   5.24 |
+| 2025-04-20 | Sun (weekend) | Easter Sunday   |                   2.50 |            11.64 |            3.30 |                   2.62 |
+| 2025-04-21 | Mon           | Easter Monday   |                   6.30 |             6.63 |            6.80 |                   2.29 |
+| 2025-05-01 | Thu           | Labour Day      |                  12.04 |            11.34 |           10.89 |                   2.24 |
+| 2025-05-29 | Thu           | Ascension Day   |                   3.50 |             3.69 |            4.86 |                   1.99 |
+| 2025-06-08 | Sun (weekend) | Whit Sunday     |                   3.34 |             6.87 |            5.48 |                   3.33 |
+| 2025-06-09 | Mon           | Whit Monday     |                   8.79 |             4.52 |           10.54 |                   2.59 |
+| 2025-07-21 | Mon           | National Day    |                   5.73 |             4.51 |            7.13 |                   3.54 |
+| 2025-08-15 | Fri           | Assumption Day  |                  14.77 |            15.32 |            8.38 |                   2.18 |
+| 2025-11-01 | Sat (weekend) | All Saints' Day |                   2.71 |             2.53 |            3.28 |                   4.24 |
+| 2025-11-11 | Tue           | Armistice Day   |                   6.87 |             9.04 |            7.80 |                   4.97 |
+| 2025-12-25 | Thu           | Christmas Day   |                   7.75 |             5.59 |            3.48 |                   5.24 |
 
 Single days are noisy; this table is descriptive. Holidays come from the `holidays` package (Belgium).
 <!-- holidays:end -->

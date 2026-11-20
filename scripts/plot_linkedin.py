@@ -5,7 +5,7 @@
 
 docs/img/linkedin_week.png : the dashboard's default week (rule-based "typical week": holiday-free Monday-Sunday whose
                              WAPE is closest to the full-year WAPE), actual vs timestral-123m (with its P10-P90 band)
-                             vs Elia's operational forecast, week WAPE per series in the legend.
+                             vs Elia's published day-ahead forecast, week WAPE per series in the legend.
 docs/img/linkedin_year.png : daily WAPE through 2025 for the same two forecasts, weekday holidays labelled.
 """
 

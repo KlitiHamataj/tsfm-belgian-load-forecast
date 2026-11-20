@@ -33,6 +33,7 @@ class ModelCard(BaseModel):
     family: str
     kind: str = "model"  # "model" | "baseline"
     display_name: str
+    short_name: str | None = None  # shown instead of the id in README tables and the README chart
     publisher: str
     release_date: str | None = None
     license: str

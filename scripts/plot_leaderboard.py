@@ -40,7 +40,8 @@ def main() -> None:
         )
 
     def label(r: pd.Series) -> str:
-        name = f"{r.model} †" if flagged(r.model) else r.model
+        shown = cards[r.model].short_name or r.model if r.model in cards else r.model
+        name = f"{shown} †" if flagged(r.model) else shown
         if r.model == protocol.reference_model or r.family == "baseline":
             return name
         return f"{name}  ({r.covariates}, {r['ctx (days)']}d)"
@@ -63,7 +64,7 @@ def main() -> None:
     for yi, w, hi in zip(y, best.wape_pct, best.wape_ci95_hi):
         ax.text(hi + 0.05, yi, f"{w:.2f}", va="center", ha="left", fontsize=8, color="black")
     ax.axvline(ref_wape, color="black", linestyle="--", linewidth=1)
-    ax.text(ref_wape, len(best) - 0.4, f" {protocol.reference_model} {ref_wape:.2f}%",
+    ax.text(ref_wape, len(best) - 0.4, f" {cards[protocol.reference_model].short_name or protocol.reference_model} {ref_wape:.2f}%",
             va="bottom", ha="left", fontsize=8)
     ax.set_xlabel("Pooled WAPE on 2025 (%), lower is better; whiskers = 95% CI over days")
     ax.set_ylim(-0.6, len(best) - 0.1)
