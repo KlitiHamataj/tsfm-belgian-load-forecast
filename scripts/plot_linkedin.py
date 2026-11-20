@@ -3,8 +3,9 @@
     uv run bench export-dashboard          # only if the runs changed
     uv run python scripts/plot_linkedin.py
 
-docs/img/linkedin_week.png : 10-16 Nov 2025 (contains the 11 Nov weekday holiday), actual vs timestral-123m (with its
-                             P10-P90 band) vs Elia's operational forecast, week WAPE per series in the legend.
+docs/img/linkedin_week.png : the dashboard's default week (rule-based "typical week": holiday-free Monday-Sunday whose
+                             WAPE is closest to the full-year WAPE), actual vs timestral-123m (with its P10-P90 band)
+                             vs Elia's operational forecast, week WAPE per series in the legend.
 docs/img/linkedin_year.png : daily WAPE through 2025 for the same two forecasts, weekday holidays labelled.
 """
 
@@ -25,21 +26,23 @@ from tsbench.config import ROOT
 DASH = ROOT / "docs" / "dashboard"
 OUT = ROOT / "docs" / "img"
 MODEL, REF = "timestral-123m", "elia_reference"
-WEEK = ("2025-11-10", "2025-11-16")
-ACTUAL_COLOR, MUTED, HOLIDAY = "#8c8c8c", "#555b66", "#b0485a"
-LABELS = {MODEL: "Mistral Timestral 123M (zero-shot)", REF: "Elia operational forecast (reference)"}
+ACTUAL_COLOR, MUTED, HOLIDAY, NEAR_BLACK = "#8c8c8c", "#555b66", "#b0485a", "#1a1a1a"
 SHORT = {"New Year's Day": "New Year", "Easter Monday": "Easter Mon", "Labor Day": "Labour Day",
          "Ascension Day": "Ascension", "Pentecost Monday": "Whit Monday", "National Day": "National Day",
          "Assumption Day": "Assumption", "Armistice Day": "Armistice", "Christmas Day": "Christmas"}
 FOOTNOTE = ("Zero-shot (no fine-tuning), CPU. One forecast per day at 18:00 Brussels for the next day, 15-min,\n"
-            "every day of 2025. Timestral 123M in its best configuration (calendar + temperature covariates, 75-day\n"
-            "context). Its weights were released after 2025, so training-data contamination is not ruled out.\n"
+            "every day of 2025. Calendar + temperature covariates; best context length on 2025 (slightly optimistic).\n"
+            "† Weights released after 2025 and training data undisclosed: contamination is not ruled out.\n"
             "Data: Elia Open Data (ods001). Weather data by Open-Meteo.com (CC BY 4.0).")
 
 plt.rcParams.update({"font.size": 20, "axes.titlesize": 26, "axes.labelsize": 20, "xtick.labelsize": 18,
                      "ytick.labelsize": 18, "legend.fontsize": 18, "axes.spines.top": False,
                      "axes.spines.right": False, "axes.edgecolor": "#888888", "axes.grid": True,
                      "grid.color": "#e6e6e6", "grid.linewidth": 1})
+
+
+def color(series: dict) -> str:
+    return NEAR_BLACK if series["color"].lower() == "#000000" else series["color"]
 
 
 def wape(a: np.ndarray, f: np.ndarray) -> float:
@@ -62,7 +65,8 @@ def frame(fig, title: str, subtitle: str) -> None:
 
 
 def week_png(data, daily, local) -> None:
-    lo, hi = pd.Timestamp(WEEK[0]), pd.Timestamp(WEEK[1]) + pd.Timedelta(days=1)
+    week = (data["default_view"]["start"], data["default_view"]["end"])
+    lo, hi = pd.Timestamp(week[0]), pd.Timestamp(week[1]) + pd.Timedelta(days=1)
     m = (local >= lo) & (local < hi)
     t, a = local[m], np.asarray(data["actual"])[m]
     s, r = data["series"][MODEL], data["series"][REF]
@@ -72,14 +76,14 @@ def week_png(data, daily, local) -> None:
     fig = plt.figure(figsize=(12, 12), dpi=100)
     ax = fig.add_axes((0.11, 0.33, 0.85, 0.44))
     for d, name, wk in zip(daily["dates"], daily["holiday_name"], daily["is_holiday"]):
-        if wk and WEEK[0] <= d <= WEEK[1]:
+        if wk and week[0] <= d <= week[1]:  # none by construction for the typical week
             ax.axvspan(pd.Timestamp(d), pd.Timestamp(d) + pd.Timedelta(days=1), color=HOLIDAY, alpha=0.10, lw=0)
             ax.text(pd.Timestamp(d) + pd.Timedelta(hours=12), 0.985, f"{SHORT.get(name, name)}\n(public holiday)",
                     transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=16, color=HOLIDAY)
-    ax.fill_between(t, p10, p90, color=s["color"], alpha=0.18, lw=0, label=f"{LABELS[MODEL]}: P10-P90 band")
+    ax.fill_between(t, p10, p90, color=color(s), alpha=0.18, lw=0, label=f"{s['label']}: P10-P90 band")
     ax.plot(t, a, color=ACTUAL_COLOR, lw=4.5, label="Actual load", solid_capstyle="round")
-    ax.plot(t, ref, color=r["color"], lw=2, label=f"{LABELS[REF]}  ·  week WAPE {wape(a, ref):.2f}%")
-    ax.plot(t, p50, color=s["color"], lw=2.4, label=f"{LABELS[MODEL]}  ·  week WAPE {wape(a, p50):.2f}%")
+    ax.plot(t, ref, color=color(r), lw=2, label=f"{r['label']}  ·  week WAPE {wape(a, ref):.2f}%")
+    ax.plot(t, p50, color=color(s), lw=2.4, label=f"{s['label']}  ·  week WAPE {wape(a, p50):.2f}%")
     ax.set_xlim(lo, hi)
     ax.xaxis.set_major_locator(mdates.DayLocator())  # gridlines at midnight, labels centred on each day
     ax.xaxis.set_major_formatter(matplotlib.ticker.NullFormatter())
@@ -94,8 +98,9 @@ def week_png(data, daily, local) -> None:
     order = [1, 3, 0, 2]
     fig.legend([h[i] for i in order], [lab[i] for i in order], loc="upper left", bbox_to_anchor=(0.04, 0.255),
                frameon=False, ncol=1, handlelength=2.2, fontsize=17, labelspacing=0.45)
-    frame(fig, "How a zero-shot foundation model handles\na holiday week - Belgian load, 10-16 Nov 2025",
-          "Week chosen because it contains a weekday holiday (Tue 11 Nov),\nthe models' main weakness.")
+    span = f"{lo:%a %d} - {hi - pd.Timedelta(days=1):%a %d %b %Y}"
+    frame(fig, "A typical week of 2025: Belgian day-ahead\nload, zero-shot forecast vs actual",
+          f"{span}: the holiday-free week whose WAPE is closest\nto the full-year WAPE (chosen by rule).")
     OUT.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT / "linkedin_week.png", facecolor="white")
     plt.close(fig)
@@ -113,8 +118,8 @@ def year_png(data, daily) -> None:
             ax.text(d, 0.99, SHORT.get(name, name), transform=ax.get_xaxis_transform(), rotation=90,
                     ha="left" if first else "right", va="top", fontsize=13, color=HOLIDAY)
     for k, lw in ((REF, 1.6), (MODEL, 1.8)):
-        ax.plot(dates, daily["wape"][k], color=data["series"][k]["color"], lw=lw,
-                label=f"{LABELS[k]}  ·  2025 WAPE {full[k]:.2f}%")
+        sr = data["series"][k]
+        ax.plot(dates, daily["wape"][k], color=color(sr), lw=lw, label=f"{sr['label']}  ·  2025 WAPE {full[k]:.2f}%")
     ax.set_xlim(pd.Timestamp("2025-01-01"), pd.Timestamp("2025-12-31"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
