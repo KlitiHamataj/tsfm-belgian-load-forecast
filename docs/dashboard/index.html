@@ -34,6 +34,7 @@
   .series-ctl { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
   .swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; flex: none; }
   .swatch.actual { height: 6px; }
+  .swatch.dash { height: 3px; background: none !important; border-top: 3px dashed var(--sw); border-radius: 0; }
   .series-ctl label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
   .band { color: var(--muted); font-size: 0.82rem; }
   .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
@@ -57,6 +58,23 @@
   footer strong { color: var(--text); font-weight: 600; }
   a { color: var(--accent); }
   #status { color: var(--muted); padding: 30px 0; }
+  @media (min-width: 768px) {
+    html, body { font-size: 16.5px; }
+    main { max-width: 1200px; padding: 28px 24px 48px; }
+    h1 { font-size: 1.65rem; margin-bottom: 8px; }
+    .sub { font-size: 0.95rem; }
+    h2 { font-size: 1.12rem; margin: 40px 0 10px; }
+    .hint { font-size: 0.88rem; }
+    .controls { margin-top: 20px; padding: 12px 14px; }
+    .series-ctl { font-size: 0.95rem; }
+    #year { height: 300px; }
+    #detail { height: 500px; }
+    .caption { font-size: 0.9rem; margin-top: 10px; }
+    table { font-size: 0.95rem; }
+    th, td { padding: 8px 12px; }
+    footer { margin-top: 44px; padding-top: 18px; font-size: 0.88rem; }
+    footer p { margin-bottom: 10px; }
+  }
   @media (max-width: 767px) {
     h1 { font-size: 1.15rem; }
     #year { height: 220px; }
@@ -137,6 +155,7 @@ function rgba(hex, a) {
   return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
 }
 const label = (sid) => (narrow() ? D.series[sid].short : D.series[sid].label);
+const dash = (sid) => (D.series[sid].dash ? "dash" : "solid");
 
 // Local wall-clock x values. The regular UTC grid is converted to Europe/Brussels; the repeated autumn hour gets a
 // line break (null) so lines do not jump back in time.
@@ -202,11 +221,11 @@ const currentRange = () => state.range || viewFor(state.day, state.mode).map((d)
 
 function axisStyle() {
   return { gridcolor: css("--grid"), linecolor: css("--border"), zerolinecolor: css("--grid"),
-    tickfont: { color: css("--muted"), size: 11 }, title: { font: { color: css("--muted"), size: 12 } } };
+    tickfont: { color: css("--muted"), size: narrow() ? 11 : 13 }, title: { font: { color: css("--muted"), size: 13 } } };
 }
 function baseLayout() {
   return { paper_bgcolor: css("--surface"), plot_bgcolor: css("--surface"),
-    font: { family: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif", color: css("--text"), size: 12 },
+    font: { family: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif", color: css("--text"), size: narrow() ? 12 : 13 },
     hoverlabel: { bgcolor: css("--panel"), bordercolor: css("--border"), font: { color: css("--text") } } };
 }
 const CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"] };
@@ -214,7 +233,7 @@ const CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: [
 function drawYear() {
   const traces = Y.series.filter((s) => state.show[s]).map((s) => ({
     type: "scatter", mode: narrow() ? "lines" : "lines+markers", name: label(s), x: Y.dates, y: Y.wape[s],
-    line: { color: color(s), width: narrow() ? 1.2 : 1.5 }, marker: { color: color(s), size: 4 },
+    line: { color: color(s), width: narrow() ? 1.2 : 1.5, dash: dash(s) }, marker: { color: color(s), size: 4 },
     hovertemplate: `${label(s)}: %{y:.2f}%<extra></extra>`,
   }));
   // Holiday markers on the x axis; their names show in the hover (the only labels on narrow screens).
@@ -235,7 +254,7 @@ function drawYear() {
     if (wk && !narrow()) ann.push({ x: d, y: 1, xref: "x", yref: "paper", yanchor: "top",
       xanchor: i === 0 ? "left" : "right",
       textangle: -90, text: SHORT[Y.holiday_name[i]] || Y.holiday_name[i] || "holiday", showarrow: false,
-      font: { size: 10, color: css("--hol") } });
+      font: { size: 11, color: css("--hol") } });
   });
   const layout = { ...baseLayout(), margin: { l: narrow() ? 36 : 48, r: 10, t: 8, b: 30 }, showlegend: false,
     hovermode: "x unified",
@@ -286,11 +305,12 @@ function drawDetail() {
   for (const s of ids()) {
     if (!state.show[s]) continue;
     tr.push({ type: "scattergl", mode: "lines", name: label(s), x: X, y: mapY(D.series[s].P50), legendgroup: s,
-      line: { color: color(s), width: 1.7 }, hovertemplate: `${label(s)}: %{y:,} MW<extra></extra>` });
+      line: { color: color(s), width: D.series[s].dash ? 2 : 1.7, dash: dash(s) },
+      hovertemplate: `${label(s)}: %{y:,} MW<extra></extra>` });
   }
   const n = narrow();
   const layout = { ...baseLayout(), margin: { l: n ? 40 : 56, r: 10, t: n ? 6 : 10, b: 10 }, hovermode: "x unified",
-    showlegend: !n, legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } },
+    showlegend: !n, legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 13 } },
     xaxis: { ...axisStyle(), type: "date", range, hoverformat: "%a %d %b %Y %H:%M",
       rangeslider: { visible: true, thickness: n ? 0.07 : 0.09, bgcolor: css("--panel"), bordercolor: css("--border"),
         yaxis2: { rangemode: "auto" } } },
@@ -318,7 +338,7 @@ function readout() {
   const [lo, hi] = currentRange().map((r) => r.slice(0, 16));
   const r = wapeOver(lo, hi);
   const days = (r.n / 96).toFixed(r.n % 96 ? 1 : 0);
-  const rows = ids().map((s) => `<tr><td><span class="swatch" style="background:${color(s)}"></span>
+  const rows = ids().map((s) => `<tr><td><span class="swatch${D.series[s].dash ? " dash" : ""}" style="background:${color(s)};--sw:${color(s)}"></span>
     ${label(s)}</td><td>${isNaN(r.w[s]) ? "–" : r.w[s].toFixed(2) + "%"}</td><td>${fullYear(s).toFixed(2)}%</td></tr>`);
   const span = narrow() ? `${lo.slice(5, 10)} → ${hi.slice(5, 10)}` : `${lo} → ${hi}`;
   document.getElementById("readout").innerHTML = `<thead><tr><th>Series</th>
@@ -328,12 +348,11 @@ function readout() {
 
 function buildControls() {
   const box = document.getElementById("controls");
-  const firstDefault = ids().find((s) => D.series[s].default);
   const parts = [`<span class="series-ctl"><span class="swatch actual" style="background:var(--actual)"></span>Actual load</span>`];
   for (const s of ids()) {
     parts.push(`<span class="series-ctl"><label><input type="checkbox" data-show="${s}"${D.series[s].default ? " checked" : ""}>
-      <span class="swatch" data-sw="${s}"></span><span data-lbl="${s}"></span></label>
-      <label class="band"><input type="checkbox" data-band="${s}"${s === firstDefault ? " checked" : ""}>band</label></span>`);
+      <span class="swatch${D.series[s].dash ? " dash" : ""}" data-sw="${s}"></span><span data-lbl="${s}"></span></label>
+      <label class="band"><input type="checkbox" data-band="${s}">band</label></span>`);
   }
   parts.push(`<span class="spacer"></span><span class="seg" role="group" aria-label="Zoom to">
     <button type="button" data-mode="day">Day</button><button type="button" data-mode="week">Week</button></span>`);
@@ -351,7 +370,9 @@ function buildControls() {
   }));
 }
 function paintControls() {
-  document.querySelectorAll("[data-sw]").forEach((el) => { el.style.background = color(el.dataset.sw); });
+  document.querySelectorAll("[data-sw]").forEach((el) => {
+    el.style.background = color(el.dataset.sw); el.style.setProperty("--sw", color(el.dataset.sw));
+  });
   document.querySelectorAll("[data-lbl]").forEach((el) => { el.textContent = label(el.dataset.lbl); });
   document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
   document.getElementById("theme").textContent = dark() ? "Light" : "Dark";

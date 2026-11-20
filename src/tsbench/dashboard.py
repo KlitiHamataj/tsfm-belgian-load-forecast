@@ -35,6 +35,7 @@ class SeriesRef(BaseModel):
     label: str | None = None
     short: str
     default: bool = False
+    dash: bool = False
 
     @property
     def cell(self) -> Cell:
@@ -139,7 +140,7 @@ def export_dashboard(protocol: Protocol, cfg: DashboardCfg | None = None) -> dic
         label = s.label or f"{card.display_name} ({s.context_days} days)"
         series[s.model] = {
             "label": label + (" †" if flag else ""), "short": s.short + (" †" if flag else ""),
-            "cell": s.cell.label, "color": card.color, "default": s.default, "contamination_caveat": flag,
+            "cell": s.cell.label, "color": card.color, "default": s.default, "dash": s.dash, "contamination_caveat": flag,
             **{k: v.tolist() for k, v in q.items()},
         }
     local = ts.dt.tz_convert(protocol.timezone)
