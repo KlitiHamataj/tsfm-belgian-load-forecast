@@ -13,6 +13,9 @@ come with a caveat: both models' weights were released after the test year,
 so training-data contamination is not ruled out. The next step is a rerun
 on Elia data from after 15 October 2026.
 
+**[Interactive dashboard](https://klitihamataj.github.io/tsfm-belgian-load-forecast/dashboard/)**: every 15-minute
+forecast of 2025 against the actual load, daily WAPE through the year, holidays marked.
+
 ![Pooled WAPE on 2025, best configuration per model, with 95% confidence intervals](docs/img/wape_by_model.png)
 
 Models: Chronos-2, Mistral Timestral 5M/28M/123M/209M and t0-gamma, versus baselines and Elia's day-ahead forecast.
@@ -80,6 +83,17 @@ Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and 
   except timestral-5m are below Elia (2.76-2.87% vs 3.02%), so part of the overall comparison with Elia is decided on
   these few days. 9 days is a small sample: no CI is reported for this slice.
   Source: "Slices" in [results/leaderboard/summary.md](results/leaderboard/summary.md).
+
+## Dashboard
+[klitihamataj.github.io/tsfm-belgian-load-forecast/dashboard/](https://klitihamataj.github.io/tsfm-belgian-load-forecast/dashboard/)
+(GitHub Pages, served from `docs/` on `main`). The series shown are set in `configs/dashboard.yaml`. To regenerate:
+```bash
+uv run bench export-dashboard             # outputs/runs -> docs/dashboard/data.json + daily.json (WAPE checked vs results/)
+uv run python scripts/plot_linkedin.py    # docs/img/linkedin_week.png, linkedin_year.png (from the exported JSON)
+uv run python -m http.server -d docs      # then open http://localhost:8000/dashboard/
+```
+The page loads its JSON with `fetch`, which browsers block for files opened from disk, hence the local server.
+The export (≈2.4 MB, integer MW, scored points only) is committed; raw data is not.
 
 ## Quickstart
 ```bash
