@@ -47,6 +47,10 @@
   #year { height: 280px; }
   #detail { height: 460px; }
   .caption { color: var(--muted); font-size: 0.84rem; margin: 6px 0 0; }
+  .chart-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+  .chart-head h2 { flex: 1; min-width: 0; }
+  .chart-head button { margin-bottom: 6px; }
+  #detail { touch-action: pan-y; }  /* vertical page scroll stays native; pinch and horizontal drag go to the chart */
   .readout { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
   th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -70,6 +74,7 @@
     #year { height: 300px; }
     #detail { height: 500px; }
     .caption { font-size: 0.9rem; margin-top: 10px; }
+    .chart-head button { margin-bottom: 10px; }
     table { font-size: 0.95rem; }
     th, td { padding: 8px 12px; }
     footer { margin-top: 44px; padding-top: 18px; font-size: 0.88rem; }
@@ -104,11 +109,13 @@
   <h2>Daily WAPE through the year <span class="hint">· click a day to inspect it below</span></h2>
   <div id="year" class="chart"></div>
 
-  <h2>15-minute load and forecasts</h2>
+  <div class="chart-head">
+    <h2>15-minute load and forecasts <span class="hint" id="zoom-hint"></span></h2>
+    <button type="button" class="theme-toggle" id="reset">Reset view</button>
+  </div>
   <div id="detail" class="chart"><div id="status">Loading data…</div></div>
-  <p class="caption">Default view: Wednesday of the most typical week of 2025 (week WAPE closest to the full-year
-    WAPE); use Week to see the whole week. Click any day in the chart above to inspect it. Lower panel: forecast minus
-    actual (above zero = over-forecast).</p>
+  <p class="caption">Default view: the most typical week of 2025 (week WAPE closest to the full-year WAPE). Click any
+    day in the chart above to inspect it.</p>
 
   <h2>WAPE <span class="hint">· pooled over all quarter-hours; "Visible range" follows the zoom of the chart above</span></h2>
   <div class="readout"><table id="readout" aria-live="polite"></table></div>
@@ -139,7 +146,7 @@ const SHORT = { "New Year's Day": "New Year", "Easter Monday": "Easter Mon", "La
   "Ascension Day": "Ascension", "Pentecost Monday": "Whit Monday", "National Day": "National Day",
   "Assumption Day": "Assumption", "Armistice Day": "Armistice", "Christmas Day": "Christmas" };
 const NARROW = window.matchMedia("(max-width: 767px)");
-const state = { show: {}, band: {}, mode: "day", day: null, range: null };
+const state = { show: {}, band: {}, mode: "week", day: null, range: null };
 let D, Y, X, SRC, TZ, POS;
 
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -224,6 +231,8 @@ function baseLayout() {
     hoverlabel: { bgcolor: css("--panel"), bordercolor: css("--border"), font: { color: css("--text") } } };
 }
 const CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"] };
+const DETAIL_CONFIG = { ...CONFIG, scrollZoom: true, doubleClick: false,
+  modeBarButtonsToRemove: [...CONFIG.modeBarButtonsToRemove, "zoomIn2d", "zoomOut2d", "resetScale2d"] };
 
 function drawYear() {
   // Per series: daily WAPE as faint dots, and a centred 7-day mean of the daily values as the line.
@@ -274,18 +283,6 @@ function rolling(v, w) {
   });
 }
 
-// Visible error range (P50 - actual), symmetric around zero.
-function errRange(lo, hi) {
-  let m = 0;
-  for (let k = 0; k < X.length; k++) {
-    const i = SRC[k];
-    if (i < 0 || X[k] < lo || X[k] >= hi) continue;
-    for (const s of ids()) if (state.show[s]) m = Math.max(m, Math.abs(D.series[s].P50[i] - D.actual[i]));
-  }
-  const r = (m || 100) * 1.1;
-  return [-r, r];
-}
-
 // y range of everything drawn inside [lo, hi), padded, so the axis fits the visible window.
 function yRange(lo, hi) {
   let mn = Infinity, mx = -Infinity;
@@ -325,26 +322,15 @@ function drawDetail() {
     tr.push({ type: "scattergl", mode: "lines", name: label(s), x: X, y: mapY(D.series[s].P50), legendgroup: s,
       line: { color: color(s), width: 2, dash: dash(s) }, hovertemplate: `${label(s)}: %{y:,} MW<extra></extra>` });
   }
-  // Error panel: P50 - actual on a second y axis sharing the x axis (zoom is linked by construction).
-  for (const s of ids()) {
-    if (!state.show[s]) continue;
-    const P50 = D.series[s].P50;
-    tr.push({ type: "scattergl", mode: "lines", name: label(s), x: X, yaxis: "y2", legendgroup: s, showlegend: false,
-      y: SRC.map((i) => (i < 0 ? null : P50[i] - D.actual[i])), line: { color: color(s), width: 2, dash: dash(s) },
-      hovertemplate: `${label(s)} error: %{y:+,} MW<extra></extra>` });
-  }
   const n = narrow();
-  const panel = (text, y) => ({ text, xref: "paper", yref: "paper", x: 0, y, xanchor: "left", yanchor: "top",
-    showarrow: false, font: { size: n ? 11 : 12, color: css("--muted") }, bgcolor: css("--surface"), borderpad: 2 });
   const layout = { ...baseLayout(), margin: { l: n ? 44 : 60, r: 10, t: n ? 6 : 10, b: n ? 34 : 40 },
-    hovermode: "x unified",
+    hovermode: "x unified", dragmode: n ? "pan" : "zoom",
     showlegend: !n, legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 13 } },
-    xaxis: { ...axisStyle(), type: "date", range, anchor: "y2", hoverformat: "%a %d %b %Y %H:%M" },
-    yaxis: { ...axisStyle(), domain: [0.43, 1], range: yRange(lo, hi), tickformat: n ? "~s" : ",d" },
-    yaxis2: { ...axisStyle(), domain: [0, 0.37], range: errRange(lo, hi), tickformat: n ? "+~s" : "+,d",
-      zeroline: true, zerolinecolor: css("--muted"), zerolinewidth: 1.2 },
-    annotations: [panel("Load (MW)", 1), panel("Forecast − actual (MW)", 0.37)] };
-  return Plotly.react("detail", tr, layout, CONFIG);
+    xaxis: { ...axisStyle(), type: "date", range, hoverformat: "%a %d %b %Y %H:%M" },
+    // y follows the visible x range (fitY); fixed so drag and wheel zoom act on time only
+    yaxis: { ...axisStyle(), range: yRange(lo, hi), fixedrange: true, tickformat: n ? "~s" : ",d",
+      title: { text: n ? "" : "load (MW)", font: { color: css("--muted"), size: 13 } } } };
+  return Plotly.react("detail", tr, layout, DETAIL_CONFIG);
 }
 
 function wapeOver(lo, hi) {
@@ -364,12 +350,14 @@ function fullYear(s) {
 function readout() {
   const [lo, hi] = currentRange().map((r) => r.slice(0, 16));
   const r = wapeOver(lo, hi);
-  const days = (r.n / 96).toFixed(r.n % 96 ? 1 : 0);
+  const len = r.n >= 96 ? `${(r.n / 96).toFixed(r.n % 96 ? 1 : 0)} d` : `${(r.n / 4).toFixed(r.n % 4 ? 2 : 0)} h`;
+  const sameDay = lo.slice(0, 10) === hi.slice(0, 10);
   const rows = ids().map((s) => `<tr><td><span class="swatch${D.series[s].dash ? " dash" : ""}" style="background:${color(s)};--sw:${color(s)}"></span>
     ${label(s)}</td><td>${isNaN(r.w[s]) ? "–" : r.w[s].toFixed(2) + "%"}</td><td>${fullYear(s).toFixed(2)}%</td></tr>`);
-  const span = narrow() ? `${lo.slice(5, 10)} → ${hi.slice(5, 10)}` : `${lo} → ${hi}`;
+  const span = sameDay ? `${narrow() ? lo.slice(5, 10) : lo.slice(0, 10)} ${lo.slice(11)} → ${hi.slice(11)}`
+    : narrow() ? `${lo.slice(5, 10)} → ${hi.slice(5, 10)}` : `${lo} → ${hi}`;
   document.getElementById("readout").innerHTML = `<thead><tr><th>Series</th>
-    <th>Visible range<br><span class="hint">${span} (${days} d)</span></th><th>Full year</th></tr></thead>
+    <th>Visible range<br><span class="hint">${span} (${len})</span></th><th>Full year</th></tr></thead>
     <tbody>${rows.join("")}</tbody>`;
 }
 
@@ -415,6 +403,55 @@ async function redraw() {
   readout();
 }
 
+function resetView() {
+  state.range = null; state.mode = "week"; state.day = D.default_view.start; redraw();
+}
+
+// After an x-range change: refit y to the visible data. Bands need a new data window, so they redraw fully.
+let fitPending = false;
+function scheduleFit() {
+  if (fitPending) return;
+  fitPending = true;
+  requestAnimationFrame(async () => {
+    fitPending = false;
+    if (ids().some((s) => state.show[s] && state.band[s])) { await redraw(); return; }
+    const [lo, hi] = currentRange().map((r) => r.slice(0, 16));
+    const yr = yRange(lo, hi);
+    syncing = true;
+    if (yr) await Plotly.relayout("detail", { "yaxis.range": yr });
+    syncing = false;
+    drawYear(); readout();
+  });
+}
+
+// Two-finger pinch zoom on the time axis (Plotly has none for touch). Capture-phase listeners keep the second
+// finger away from Plotly's own drag handling; one-finger drag still pans via dragmode "pan".
+function setupPinch(el) {
+  let start = null;
+  const span = (t) => Math.abs(t[0].clientX - t[1].clientX) || 1;
+  el.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 2) return;
+    const xa = el._fullLayout.xaxis, box = el.getBoundingClientRect();
+    const mid = (e.touches[0].clientX + e.touches[1].clientX) / 2 - box.left - xa._offset;
+    const [l0, l1] = xa.range.map((r) => xa.r2l(r));
+    start = { d: span(e.touches), l0, l1, at: l0 + (mid / xa._length) * (l1 - l0), frac: mid / xa._length };
+    e.stopPropagation(); e.preventDefault();
+  }, { capture: true, passive: false });
+  el.addEventListener("touchmove", (e) => {
+    if (!start || e.touches.length !== 2) return;
+    e.stopPropagation(); e.preventDefault();
+    const xa = el._fullLayout.xaxis;
+    const lim = [Date.parse("2025-01-01T00:00:00Z"), Date.parse("2026-01-01T00:00:00Z")];
+    const w = Math.min(lim[1] - lim[0], Math.max(3600e3, ((start.l1 - start.l0) * start.d) / span(e.touches)));
+    let a = start.at - start.frac * w;
+    a = Math.max(lim[0], Math.min(a, lim[1] - w));
+    state.range = [xa.l2r(a), xa.l2r(a + w)].map(String);
+    Plotly.relayout(el, { "xaxis.range": [xa.l2r(a), xa.l2r(a + w)] });
+  }, { capture: true, passive: false });
+  el.addEventListener("touchend", (e) => { if (start && e.touches.length < 2) { start = null; e.stopPropagation(); } },
+    { capture: true });
+}
+
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem("theme", t); } catch (e) { /* storage unavailable: theme is per page view */ }
@@ -435,8 +472,8 @@ async function main() {
   }
   document.getElementById("detail").innerHTML = "";
   buildTime();
-  state.day = D.default_view.day;
-  state.mode = "day";
+  state.day = D.default_view.start;
+  state.mode = "week";
   buildControls();
   await redraw();
 
@@ -446,14 +483,23 @@ async function main() {
     if (!ev.points.length) return;
     state.day = String(ev.points[0].x).slice(0, 10); state.range = null; redraw();
   });
-  document.getElementById("detail").on("plotly_relayout", (ev) => {
+  const detail = document.getElementById("detail");
+  detail.on("plotly_relayout", (ev) => {
     if (syncing) return;
     if (ev["xaxis.range[0]"] !== undefined) state.range = [String(ev["xaxis.range[0]"]), String(ev["xaxis.range[1]"])];
     else if (Array.isArray(ev["xaxis.range"])) state.range = ev["xaxis.range"].map(String);
     else if (ev["xaxis.autorange"]) state.range = ["2025-01-01 00:00", "2026-01-01 00:00"];
     else return;
-    redraw();  // refits the y axis and the band window to the new x range
+    scheduleFit();
   });
+  // Double-click resets to the default view. Plotly's own reset is off (it would return to the last draw); its
+  // plotly_doubleclick event still fires (the browser's dblclick does not, Plotly's drag overlay takes the mouseup).
+  detail.on("plotly_doubleclick", resetView);
+  document.getElementById("reset").addEventListener("click", resetView);
+  setupPinch(detail);
+  const hint = () => { document.getElementById("zoom-hint").textContent = narrow()
+    ? "· pinch to zoom, drag to pan" : "· drag or scroll to zoom, double-click to reset"; };
+  hint(); NARROW.addEventListener("change", hint);
 }
 main();
 </script>
