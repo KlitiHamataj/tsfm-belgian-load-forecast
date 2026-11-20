@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Belgian Load Forecasts 2025</title>
+<meta name="description" content="Zero-shot time series foundation models vs Elia's day-ahead forecast on Belgian electricity load, every day of 2025, 15-minute resolution.">
+<style>
+  :root {
+    --bg: #ffffff; --surface: #ffffff; --panel: #f6f7f9; --text: #1b1d21; --muted: #5d6470; --border: #dfe2e7;
+    --grid: #eceef1; --actual: #8c8c8c; --accent: #2171b5; --sel: rgba(33, 113, 181, 0.10); --hol: #b0485a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181d; --surface: #16181d; --panel: #1f2228; --text: #e6e8eb; --muted: #a0a7b2; --border: #333842;
+      --grid: #2a2e36; --actual: #8c8c8c; --accent: #5aa0e0; --sel: rgba(90, 160, 224, 0.14); --hol: #e0798a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181d; --surface: #16181d; --panel: #1f2228; --text: #e6e8eb; --muted: #a0a7b2; --border: #333842;
+    --grid: #2a2e36; --actual: #8c8c8c; --accent: #5aa0e0; --sel: rgba(90, 160, 224, 0.14); --hol: #e0798a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; line-height: 1.25; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: 0.92rem; }
+  h2 { font-size: 0.95rem; margin: 22px 0 6px; font-weight: 600; }
+  .hint { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 10px 12px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+  .series-ctl { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+  .swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+  .swatch.actual { height: 5px; }
+  .series-ctl label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+  .band { color: var(--muted); font-size: 0.82rem; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { background: transparent; color: var(--text); border: 0; padding: 5px 12px; font: inherit;
+    font-size: 0.85rem; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .spacer { flex: 1; }
+  .chart { width: 100%; }
+  #year { height: 280px; }
+  #detail { height: 460px; }
+  .readout { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted);
+    font-size: 0.84rem; }
+  footer p { margin: 0 0 8px; }
+  footer strong { color: var(--text); font-weight: 600; }
+  a { color: var(--accent); }
+  #status { color: var(--muted); padding: 30px 0; }
+  @media (max-width: 640px) { #year { height: 240px; } #detail { height: 380px; } h1 { font-size: 1.15rem; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Belgian day-ahead load: zero-shot forecasts vs actual, 2025</h1>
+  <p class="sub">Every day of 2025 at 15-minute resolution. Forecasts issued at 18:00 (Brussels) for the next local
+    calendar day. Lower WAPE is better.</p>
+
+  <div class="controls" id="controls" aria-label="Chart controls"></div>
+
+  <h2>Daily WAPE through the year <span class="hint">· click a day to inspect it below</span></h2>
+  <div id="year" class="chart"></div>
+
+  <h2 id="detail-title">15-minute load and forecasts</h2>
+  <div id="detail" class="chart"><div id="status">Loading data…</div></div>
+
+  <h2>WAPE <span class="hint">· pooled over all quarter-hours; "Visible range" follows the zoom of the chart above</span></h2>
+  <div class="readout"><table id="readout" aria-live="polite"></table></div>
+
+  <footer>
+    <p><strong>Setup.</strong> Zero-shot (no fine-tuning), CPU inference. One forecast per day, issued at 18:00
+      Europe/Brussels from data up to 17:45, for the next local calendar day (92/96/100 quarter-hours on DST days);
+      every day of 2025 (365 forecasts). Each model is shown in its best configuration on 2025 (covariates and context
+      length in its label), which makes its WAPE slightly optimistic. Lines are the median (P50) forecast; bands are
+      P10-P90.</p>
+    <p><strong>Contamination caveat.</strong> Timestral and t0-gamma weights were released on 2026-10-15, after the
+      2025 test year, and their real training data is not disclosed, so 2025 Elia data may have been seen in training.
+      Chronos-2's weights date from 2025-10-30 and its disclosed training data lists no Belgian load.</p>
+    <p><strong>Data revisions.</strong> Models read Elia's revised historical load as context; at 18:00 on each real day
+      Elia's forecasters had only preliminary measurements and their own weather forecasts, which likely favours the
+      models slightly.</p>
+    <p>Data: Elia Open Data (ods001). Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a>
+      (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).
+      Code, protocol and full results: <a href="https://github.com/KlitiHamataj/tsfm-belgian-load-forecast#readme">github.com/KlitiHamataj/tsfm-belgian-load-forecast</a>.</p>
+  </footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"
+        integrity="sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7"
+        crossorigin="anonymous"></script>
+<script>
+"use strict";
+const SHORT = { "New Year's Day": "New Year", "Easter Monday": "Easter Mon", "Labor Day": "Labour Day",
+  "Ascension Day": "Ascension", "Pentecost Monday": "Whit Monday", "National Day": "National Day",
+  "Assumption Day": "Assumption", "Armistice Day": "Armistice", "Christmas Day": "Christmas" };
+const LABEL = { elia_reference: "Elia operational forecast (reference)" };
+const state = { show: {}, band: {}, mode: "week", day: null, range: null };
+let D, Y, X, SRC, TZ, HOURLY, dark = false;
+
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const isDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
+function color(sid) {
+  const c = D.series[sid].color;
+  return dark && c.toLowerCase() === "#000000" ? "#ededed" : c;  // card black is invisible on a dark surface
+}
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}
+function label(sid) {
+  const s = D.series[sid];
+  if (LABEL[sid]) return LABEL[sid];
+  const [, cov, ctx] = s.cell.split("/");
+  return `${s.label} (${cov}, ${ctx.replace("ctx", "")})` + (s.contamination_caveat ? " †" : "");
+}
+
+// Local wall-clock x values. The regular UTC grid is converted to Europe/Brussels; the repeated autumn hour gets a
+// line break (null) so lines do not jump back in time.
+function buildTime() {
+  const start = Date.parse(D.start_utc), step = D.step_min * 60000;
+  const fmt = new Intl.DateTimeFormat("en-GB", { timeZone: D.timezone, hourCycle: "h23", year: "numeric",
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const offCache = new Map();
+  const offset = (ms) => {
+    const h = Math.floor(ms / 3600000);
+    if (!offCache.has(h)) {
+      const p = Object.fromEntries(fmt.formatToParts(new Date(h * 3600000)).map((x) => [x.type, x.value]));
+      offCache.set(h, Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - h * 3600000);
+    }
+    return offCache.get(h);
+  };
+  X = []; SRC = []; TZ = [];
+  const POS = new Array(D.n);
+  let prev = -Infinity;
+  for (let i = 0; i < D.n; i++) {
+    const utc = start + i * step, off = offset(utc), loc = utc + off;
+    const x = new Date(loc).toISOString().slice(0, 16).replace("T", " ");
+    if (loc <= prev) { X.push(X[X.length - 1]); SRC.push(-1); TZ.push(""); }
+    POS[i] = X.length; X.push(x); SRC.push(i); TZ.push(off === 3600000 ? "CET" : "CEST");
+    prev = loc;
+  }
+  // Hourly mean of the actual load (normal SVG trace) so the range slider shows the year's shape.
+  HOURLY = { x: [], y: [] };
+  for (let i = 0; i < D.n; i += 4) {
+    HOURLY.x.push(X[POS[i]]);
+    HOURLY.y.push((D.actual[i] + D.actual[i + 1] + D.actual[i + 2] + D.actual[i + 3]) / 4);
+  }
+}
+const mapY = (arr) => SRC.map((i) => (i < 0 ? null : arr[i]));
+
+function addDays(d, n) {
+  const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10);
+}
+function viewFor(day, mode) {
+  if (mode === "day") return [day, addDays(day, 1)];
+  const dow = (new Date(day + "T00:00:00Z").getUTCDay() + 6) % 7;  // Monday = 0
+  const mon = addDays(day, -dow);
+  return [mon < "2025-01-01" ? "2025-01-01" : mon, addDays(mon, 7) > "2026-01-01" ? "2026-01-01" : addDays(mon, 7)];
+}
+
+function axisStyle() {
+  return { gridcolor: css("--grid"), linecolor: css("--border"), zerolinecolor: css("--grid"),
+    tickfont: { color: css("--muted"), size: 11 }, title: { font: { color: css("--muted"), size: 12 } } };
+}
+function baseLayout() {
+  return { paper_bgcolor: css("--surface"), plot_bgcolor: css("--surface"),
+    font: { family: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif", color: css("--text"), size: 12 },
+    hoverlabel: { bgcolor: css("--panel"), bordercolor: css("--border"), font: { color: css("--text") } } };
+}
+const CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"] };
+
+function drawYear() {
+  const traces = Y.series.filter((s) => state.show[s]).map((s) => ({
+    type: "scatter", mode: "lines+markers", name: label(s), x: Y.dates, y: Y.wape[s],
+    line: { color: color(s), width: 1.5 }, marker: { color: color(s), size: 4 },
+    hovertemplate: `${label(s)}: %{y:.2f}%<extra></extra>`,
+  }));
+  const [a, b] = state.range ? state.range.map((r) => r.slice(0, 10)) : viewFor(state.day, state.mode);
+  const shapes = [{ type: "rect", xref: "x", yref: "paper", x0: a, x1: b, y0: 0, y1: 1,
+    fillcolor: css("--sel"), line: { width: 0 }, layer: "below" }];
+  const ann = [];
+  Y.dates.forEach((d, i) => {
+    if (!Y.is_holiday[i]) return;
+    const wk = !Y.is_weekend[i];
+    shapes.push({ type: "line", xref: "x", yref: "paper", x0: d, x1: d, y0: 0, y1: 1, layer: "below",
+      line: { color: css("--hol"), width: 1, dash: wk ? "solid" : "dot" }, opacity: wk ? 0.55 : 0.35 });
+    if (wk) ann.push({ x: d, y: 1, xref: "x", yref: "paper", yanchor: "top", xanchor: "right", textangle: -90,
+      text: SHORT[Y.holiday_name[i]] || Y.holiday_name[i] || "holiday", showarrow: false,
+      font: { size: 10, color: css("--hol") } });
+  });
+  const layout = { ...baseLayout(), margin: { l: 48, r: 12, t: 8, b: 30 }, showlegend: false, hovermode: "x unified",
+    xaxis: { ...axisStyle(), type: "date", range: ["2025-01-01", "2026-01-01"], hoverformat: "%a %d %b %Y",
+      fixedrange: true },
+    yaxis: { ...axisStyle(), title: { text: "daily WAPE %", font: { color: css("--muted"), size: 12 } },
+      rangemode: "tozero", fixedrange: true },
+    shapes, annotations: ann };
+  return Plotly.react("year", traces, layout, { ...CONFIG, displayModeBar: false });
+}
+
+function drawDetail() {
+  const tr = [];
+  for (const s of Object.keys(D.series)) {
+    if (!state.show[s] || !state.band[s]) continue;
+    const c = color(s);
+    tr.push({ type: "scattergl", mode: "lines", x: X, y: mapY(D.series[s].P90), line: { width: 0, color: c },
+      hoverinfo: "skip", showlegend: false, legendgroup: s });
+    tr.push({ type: "scattergl", mode: "lines", x: X, y: mapY(D.series[s].P10), line: { width: 0, color: c },
+      fill: "tonexty", fillcolor: rgba(c, 0.16), name: `${label(s)} P10-P90`, hoverinfo: "skip",
+      showlegend: false, legendgroup: s });
+  }
+  tr.push({ type: "scatter", mode: "lines", x: HOURLY.x, y: HOURLY.y, line: { color: css("--actual"), width: 1 },
+    hoverinfo: "skip", showlegend: false, opacity: 0.6 });
+  tr.push({ type: "scattergl", mode: "lines", name: "Actual load", x: X, y: mapY(D.actual), text: TZ,
+    line: { color: css("--actual"), width: 3.5 }, hovertemplate: "Actual: %{y:,} MW (%{text})<extra></extra>" });
+  for (const s of Object.keys(D.series)) {
+    if (!state.show[s]) continue;
+    tr.push({ type: "scattergl", mode: "lines", name: label(s), x: X, y: mapY(D.series[s].P50), legendgroup: s,
+      line: { color: color(s), width: 1.6 }, hovertemplate: `${label(s)}: %{y:,} MW<extra></extra>` });
+  }
+  const range = state.range || viewFor(state.day, state.mode).map((d) => d + " 00:00");
+  const layout = { ...baseLayout(), margin: { l: 56, r: 12, t: 10, b: 10 }, hovermode: "x unified",
+    legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 11 } },
+    xaxis: { ...axisStyle(), type: "date", range, hoverformat: "%a %d %b %Y %H:%M",
+      rangeslider: { visible: true, thickness: 0.09, bgcolor: css("--panel"), bordercolor: css("--border") } },
+    yaxis: { ...axisStyle(), title: { text: "load (MW)", font: { color: css("--muted"), size: 12 } },
+      range: yRange(range[0].slice(0, 16), range[1].slice(0, 16)), tickformat: ",d" } };
+  return Plotly.react("detail", tr, layout, CONFIG);
+}
+
+// y range of everything drawn inside [lo, hi), padded, so the axis fits the visible window.
+function yRange(lo, hi) {
+  let mn = Infinity, mx = -Infinity;
+  const arrs = [D.actual];
+  for (const s of Object.keys(D.series)) {
+    if (!state.show[s]) continue;
+    arrs.push(D.series[s].P50);
+    if (state.band[s]) arrs.push(D.series[s].P10, D.series[s].P90);
+  }
+  for (let k = 0; k < X.length; k++) {
+    const i = SRC[k];
+    if (i < 0 || X[k] < lo || X[k] >= hi) continue;
+    for (const a of arrs) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; }
+  }
+  if (!isFinite(mn)) return undefined;
+  const pad = (mx - mn) * 0.06 || 100;
+  return [mn - pad, mx + pad];
+}
+
+function wapeOver(lo, hi) {
+  const sums = Object.fromEntries(Object.keys(D.series).map((s) => [s, 0]));
+  let act = 0, n = 0;
+  for (let k = 0; k < X.length; k++) {
+    const i = SRC[k];
+    if (i < 0 || X[k] < lo || X[k] >= hi) continue;
+    act += D.actual[i]; n++;
+    for (const s in sums) sums[s] += Math.abs(D.series[s].P50[i] - D.actual[i]);
+  }
+  return { n, w: Object.fromEntries(Object.entries(sums).map(([s, e]) => [s, act ? (100 * e) / act : NaN])) };
+}
+function fullYear(s) {
+  return (100 * Y.sum_abs_err[s].reduce((a, b) => a + b, 0)) / Y.sum_actual.reduce((a, b) => a + b, 0);
+}
+function readout() {
+  const [lo, hi] = (state.range || viewFor(state.day, state.mode).map((d) => d + " 00:00")).map((r) => r.slice(0, 16));
+  const r = wapeOver(lo, hi);
+  const days = (r.n / 96).toFixed(r.n % 96 ? 1 : 0);
+  const rows = Object.keys(D.series).map((s) => `<tr><td><span class="swatch" style="background:${color(s)}"></span>
+    ${label(s)}</td><td>${isNaN(r.w[s]) ? "–" : r.w[s].toFixed(2) + "%"}</td><td>${fullYear(s).toFixed(2)}%</td></tr>`);
+  document.getElementById("readout").innerHTML = `<thead><tr><th>Series</th>
+    <th>Visible range<br><span class="hint">${lo} → ${hi} (${days} d)</span></th><th>Full year 2025</th></tr></thead>
+    <tbody>${rows.join("")}</tbody>`;
+  document.getElementById("detail-title").textContent = state.mode === "day" && !state.range
+    ? `15-minute load and forecasts · ${new Date(state.day + "T12:00:00Z").toUTCString().slice(0, 16)}`
+    : "15-minute load and forecasts";
+}
+
+function buildControls() {
+  const box = document.getElementById("controls");
+  const parts = [`<span class="series-ctl"><span class="swatch actual" style="background:var(--actual)"></span>Actual</span>`];
+  for (const s of Object.keys(D.series)) {
+    parts.push(`<span class="series-ctl"><label><input type="checkbox" data-show="${s}" checked>
+      <span class="swatch" data-sw="${s}"></span>${label(s)}</label>
+      <label class="band"><input type="checkbox" data-band="${s}"${s === Object.keys(D.series)[0] ? " checked" : ""}>band</label></span>`);
+  }
+  parts.push(`<span class="spacer"></span><span class="seg" role="group" aria-label="Zoom to">
+    <button type="button" data-mode="day">Day</button><button type="button" data-mode="week">Week</button></span>`);
+  box.innerHTML = parts.join("");
+  box.querySelectorAll("[data-show]").forEach((el) => { state.show[el.dataset.show] = el.checked; });
+  box.querySelectorAll("[data-band]").forEach((el) => { state.band[el.dataset.band] = el.checked; });
+  box.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.dataset.show) state.show[t.dataset.show] = t.checked;
+    if (t.dataset.band) state.band[t.dataset.band] = t.checked;
+    redraw();
+  });
+  box.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
+    state.mode = b.dataset.mode; state.range = null; redraw();
+  }));
+}
+function paintControls() {
+  document.querySelectorAll("[data-sw]").forEach((el) => { el.style.background = color(el.dataset.sw); });
+  document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+}
+
+let syncing = false;
+async function redraw() {
+  dark = isDark();
+  paintControls();
+  syncing = true;
+  await drawDetail();
+  await drawYear();
+  syncing = false;
+  readout();
+}
+
+async function main() {
+  try {
+    const [d, y] = await Promise.all(["data.json", "daily.json"].map((f) => fetch(f).then((r) => {
+      if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`); return r.json();
+    })));
+    D = d; Y = y;
+  } catch (err) {
+    document.getElementById("status").textContent = `Could not load the data (${err.message}). Opened from disk? ` +
+      "Serve the folder instead: uv run python -m http.server -d docs, then open http://localhost:8000/dashboard/";
+    return;
+  }
+  document.getElementById("detail").innerHTML = "";
+  buildTime();
+  state.day = D.default_view.start;
+  state.range = [D.default_view.start + " 00:00", addDays(D.default_view.end, 1) + " 00:00"];
+  buildControls();
+  await redraw();
+
+  document.getElementById("year").on("plotly_click", (ev) => {
+    if (!ev.points.length) return;
+    state.day = String(ev.points[0].x).slice(0, 10); state.range = null; redraw();
+  });
+  document.getElementById("detail").on("plotly_relayout", (ev) => {
+    if (syncing) return;
+    if (ev["xaxis.range[0]"] !== undefined) state.range = [String(ev["xaxis.range[0]"]), String(ev["xaxis.range[1]"])];
+    else if (Array.isArray(ev["xaxis.range"])) state.range = ev["xaxis.range"].map(String);
+    else if (ev["xaxis.autorange"]) state.range = ["2025-01-01 00:00", "2026-01-01 00:00"];
+    else return;
+    const yr = yRange(state.range[0].slice(0, 16), state.range[1].slice(0, 16));
+    syncing = true;
+    Promise.resolve(yr && Plotly.relayout("detail", { "yaxis.range": yr })).then(() => { syncing = false; });
+    drawYear(); readout();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+}
+main();
+</script>
+</body>
+</html>
