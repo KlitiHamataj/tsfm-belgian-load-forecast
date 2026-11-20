@@ -45,6 +45,10 @@ def color(series: dict) -> str:
     return NEAR_BLACK if series["color"].lower() == "#000000" else series["color"]
 
 
+def style(series: dict) -> str:
+    return (0, (5, 2.5)) if series.get("dash") else "-"
+
+
 def wape(a: np.ndarray, f: np.ndarray) -> float:
     return float(np.abs(f - a).sum() / np.abs(a).sum() * 100)
 
@@ -82,8 +86,8 @@ def week_png(data, daily, local) -> None:
                     transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=16, color=HOLIDAY)
     ax.fill_between(t, p10, p90, color=color(s), alpha=0.18, lw=0, label=f"{s['label']}: P10-P90 band")
     ax.plot(t, a, color=ACTUAL_COLOR, lw=4.5, label="Actual load", solid_capstyle="round")
-    ax.plot(t, ref, color=color(r), lw=2, label=f"{r['label']}  ·  week WAPE {wape(a, ref):.2f}%")
-    ax.plot(t, p50, color=color(s), lw=2.4, label=f"{s['label']}  ·  week WAPE {wape(a, p50):.2f}%")
+    ax.plot(t, ref, color=color(r), lw=2.2, ls=style(r), label=f"{r['label']}  ·  week WAPE {wape(a, ref):.2f}%")
+    ax.plot(t, p50, color=color(s), lw=2.4, ls=style(s), label=f"{s['label']}  ·  week WAPE {wape(a, p50):.2f}%")
     ax.set_xlim(lo, hi)
     ax.xaxis.set_major_locator(mdates.DayLocator())  # gridlines at midnight, labels centred on each day
     ax.xaxis.set_major_formatter(matplotlib.ticker.NullFormatter())
@@ -119,7 +123,7 @@ def year_png(data, daily) -> None:
                     ha="left" if first else "right", va="top", fontsize=13, color=HOLIDAY)
     for k, lw in ((REF, 1.6), (MODEL, 1.8)):
         sr = data["series"][k]
-        ax.plot(dates, daily["wape"][k], color=color(sr), lw=lw, label=f"{sr['label']}  ·  2025 WAPE {full[k]:.2f}%")
+        ax.plot(dates, daily["wape"][k], color=color(sr), lw=lw, ls=style(sr), label=f"{sr['label']}  ·  2025 WAPE {full[k]:.2f}%")
     ax.set_xlim(pd.Timestamp("2025-01-01"), pd.Timestamp("2025-12-31"))
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
