@@ -26,7 +26,7 @@ Full experiment summaries (context sweeps, slices, paired tests, figures) are tr
 
 ## Results
 <!-- results:start -->
-_Auto-filled by `bench summarize` (2026-11-20 16:57 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in [the experiment summary](results/leaderboard/summary.md)._
+_Auto-filled by `bench summarize` (2026-11-20 18:15 UTC). Best configuration per model on 2025 (365 daily windows), pooled over all scored points; Δ is paired over the same days (negative = better than elia_reference). Context and covariates were selected on 2025 itself, so the best-per-model WAPE is optimistic; see the full context sweep in [the experiment summary](results/leaderboard/summary.md)._
 
 | model                   | covariates   | ctx (days)   |   WAPE ↓ % | CI95 %         |   median-window WAPE ↓ % | Δ vs elia_reference (pp) [CI95]   | days better   | CRPS≈ ↓ MW   |   per window ↓ s |
 |:------------------------|:-------------|:-------------|-----------:|:---------------|-------------------------:|:----------------------------------|:--------------|:-------------|-----------------:|
@@ -69,8 +69,8 @@ Gate: elia_reference WAPE 3.036% (target 3.036% ± 0.001) → PASS. Leakage and 
   at 60-90d (ΔWAPE −0.09 pp, 95% CIs just exclude 0); with `full` covariates the pooled differences are within noise
   (−0.04 to −0.09 pp at 45-90d, CIs include 0), although the sign test favours it at 75-90d (204-206/365, p < 0.03).
   At ≤30d it is worse (up to +0.26 pp at 15d without covariates). t0-gamma runs with `symmetric_averaging` on, the
-  publisher-recommended setting (see its card); this roughly doubles its CPU cost, and unlike for Timestral its effect
-  on accuracy and latency is not measured here (no "off" variant was run). Its best configuration (`full`, 75d, 2.88%) ties
+  publisher-recommended setting (see its card). symmetric_averaging is expected to roughly double its CPU cost (two
+  forward passes); not measured here. Its best configuration (`full`, 75d, 2.88%) ties
   timestral-123m on pooled WAPE and has the best median-window WAPE (2.20%). Covariates help at every context
   (−0.12 to −0.21 pp). At 90d the adapter caps the context at 85.3 days (reported `effective_context`).
   **⚠ Same contamination caveat as Timestral:** weights dated 2026-10-15, real training data undisclosed.
@@ -109,15 +109,16 @@ uv run bench gates --config configs/experiments/leaderboard.yaml   # leakage + d
 ```
 
 ## Data provenance
-Raw files are read-only, in `data/` and **not committed** (the SHA-256 hashes are in `configs/protocol.yaml`;
-`bench prepare` refuses a mismatch). `uv run python scripts/download_data.py` downloads both files with the exact
+Raw files are read-only, in `data/` and **not committed**. Their SHA-256 hashes are in `configs/protocol.yaml`;
+`bench prepare` refuses a mismatch, except that `load.csv` is also accepted when only its row order differs (its
+row-order-independent content hash, `raw_load_content_sha256`, matches). `uv run python scripts/download_data.py` downloads both files with the exact
 requests below and checks their hashes, printing a WARNING (not an error) on a mismatch:
 - Elia: `https://opendata.elia.be/api/explore/v2.1/catalog/datasets/ods001/exports/csv` with `lang=en`,
   `timezone=Europe/Brussels`, `use_labels=true`, `delimiter=;`,
   `where=datetime >= date'2024-01-01T00:00:00+01:00' and datetime < date'2026-01-01T00:00:00+01:00'`.
   The export does not return rows in a stable order, so a fresh download normally has a different SHA-256 than the
-  benchmark file. The script then compares a row-order-independent content hash and says whether the rows and values
-  are identical (checked 2026-11-13: identical) or whether Elia has revised the data.
+  benchmark file. The script then compares the content hash and says whether the rows and values are identical
+  (checked 2026-11-13: identical, so `bench prepare` accepts it) or whether Elia has changed the data.
 - Open-Meteo: `https://previous-runs-api.open-meteo.com/v1/forecast` with `latitude=50.458`, `longitude=4.437`,
   `hourly=temperature_2m_previous_day1`, `start_date=2024-01-01`, `end_date=2025-12-31`, `timezone=GMT`,
   `format=csv` (checked 2026-11-13: byte-identical to the benchmark file).
@@ -142,21 +143,19 @@ requests below and checks their hashes, printing a WARNING (not an error) on a m
 See [docs/adding_a_model.md](docs/adding_a_model.md).
 
 ## Limitations
-- Open-Meteo availability timing (see above); Elia may have revised historical data since the files were downloaded (2026-10-19).
-- **Information available to Elia vs the models.** Models read the historical load as published at download time
-  (2026-10-19). At 18:00 on each real day, Elia's forecasters only had the data available then. Elia can update measured
-  values after the fact; whether the 2025 values were revised is not known here. If they were, the models may have had
-  slightly cleaner history than Elia did.
-- Baselines (`last_value`, `daily_persistence`, `weekly_persistence`, `seasonal_moving_average`, `exp_weighted_seasonal`)
-  use only quarter-hours observed before 18:00; exact definitions are in their cards.
-- Timestral with covariates is ~10x slower than univariate on CPU; this is the library's covariate path (see the cards).
-- CPU-only latency depends on thread count (recorded in `run_meta.json`).
-- **Training-data contamination is not ruled out.** No model publishes a training-data cutoff. Timestral (all sizes) and
-  t0-gamma have weights dated 2026-10-15, after the whole 2025 test year, and do not name their real training data
-  (the Timestral tech report, arXiv:2610.37585 of 2026-10-27, does not either);
-  Chronos-2's weights date from 2025-10-30 and its disclosed datasets include no Belgian load. Public Elia data from 2025
-  may therefore have been seen by some models, which favours them on this test set. Details and sources: the
-  "Training data and cutoff" section of each model card. README results rows marked † carry this caveat.
+- Models read the historical load as published at download time (2026-10-19). At 18:00 on each real day, Elia's
+  forecasters only had the data available then. Elia can update measured values after the fact; whether the 2025
+  values were revised is not known here. If they were, the models may have had slightly cleaner history than Elia did.
+- Temperature from one Open-Meteo point (Charleroi); no solar or wind inputs. Open-Meteo has no issue timestamps, so
+  its availability at 18:00 the day before cannot be proven.
+- Only zero-shot models and naive baselines; no trained ML baseline. Baseline definitions are in their cards.
+- CPU-only latency, dependent on thread count (in `run_meta.json`); Timestral with covariates is ~10x slower than
+  without (the library's covariate path).
+- **Training-data contamination is not ruled out.** No model publishes a training-data cutoff. Timestral (all sizes)
+  and t0-gamma have weights dated 2026-10-15, after the 2025 test year, and do not name their real training data (nor
+  does the Timestral tech report, arXiv:2610.37585). Chronos-2's weights date from 2025-10-30 and its disclosed datasets
+  include no Belgian load. Public 2025 Elia data may have been in training, which would favour those models. Rows
+  marked † carry this caveat; sources in each card's "Training data and cutoff".
 
 ## Future work
 - Contamination-safe evaluation on Elia data after 2026-10-15 (after all weight dates), same frozen settings.
