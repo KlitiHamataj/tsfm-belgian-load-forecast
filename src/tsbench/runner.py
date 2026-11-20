@@ -92,7 +92,9 @@ def make_run_id(card: ModelCard, cell: Cell, params: dict, exp: Experiment, prot
             "context_policy": None if card.ignores_context_and_covariates else exp.context_policy,
             "device": exp.device,
             "seed": exp.seed,
-            "protocol": protocol.model_dump(exclude={"metrics": {"n_boot", "bootstrap_seed"}}),
+            # raw_load_content_sha256 was added later as an alternative acceptance check; excluding it keeps run_ids
+            "protocol": protocol.model_dump(exclude={"metrics": {"n_boot", "bootstrap_seed"},
+                                                     "dataset": {"raw_load_content_sha256"}}),
             "data": dhash,
         }
     )

@@ -12,7 +12,8 @@ Sources (exact requests below):
 A hash mismatch is reported as a WARNING, not an error: Elia's export does not return rows in a stable order, and
 Elia or Open-Meteo may revise historical values. For the load file the script therefore also compares a
 row-order-independent content hash, which tells "same data, reordered" apart from "data changed".
-`bench prepare` still refuses any raw file whose SHA-256 differs from protocol.yaml.
+`bench prepare` accepts a load file whose content hash matches protocol.yaml (`raw_load_content_sha256`) and refuses
+any other mismatch.
 """
 
 from __future__ import annotations
@@ -25,6 +26,8 @@ import urllib.request
 from pathlib import Path
 
 import yaml
+
+from tsbench.data.prepare import content_sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -48,17 +51,10 @@ OPEN_METEO_URL = "https://previous-runs-api.open-meteo.com/v1/forecast?" + urlli
         "format": "csv",
     }
 )
-# SHA-256 of the benchmark's load.csv with its data rows sorted (header first, BOM stripped, '\n' line ends).
-LOAD_CONTENT_SHA256 = "e26073767daaa38919be8b8c38983490b1116ef7cbc3655a3e7a8c2ef56dba47"
 
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def content_sha256(data: bytes) -> str:
-    lines = data.decode("utf-8-sig").splitlines()
-    return sha256(("\n".join([lines[0], *sorted(lines[1:])]) + "\n").encode())
 
 
 def fetch(url: str) -> bytes:
@@ -96,15 +92,16 @@ def main() -> int:
         print(f"  WARNING: SHA-256 mismatch for {path.relative_to(ROOT)}\n"
               f"    expected {expected}\n    got      {got}", file=sys.stderr)
         if name == "load":
-            if content_sha256(data) == LOAD_CONTENT_SHA256:
+            if content_sha256(path) == ds["raw_load_content_sha256"]:
                 print("    Same rows and values as the benchmark file, in a different order (Elia's export order is not "
-                      "stable).", file=sys.stderr)
+                      "stable). `bench prepare` accepts it.", file=sys.stderr)
             else:
                 print("    Content differs from the benchmark file: Elia may have revised historical data.",
                       file=sys.stderr)
     if mismatches:
-        print(f"WARNING: {mismatches} file(s) do not match configs/protocol.yaml; `bench prepare` will refuse them. "
-              "Results computed on different raw files are not comparable with the published ones.", file=sys.stderr)
+        print(f"WARNING: {mismatches} file(s) differ byte-for-byte from configs/protocol.yaml. `bench prepare` accepts "
+              "a load file whose content hash matches (row order only) and refuses anything else. Results computed on "
+              "different data are not comparable with the published ones.", file=sys.stderr)
     return 0
 
 

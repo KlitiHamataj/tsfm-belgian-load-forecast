@@ -37,6 +37,12 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def content_sha256(path: Path) -> str:
+    """SHA-256 of a CSV with its data rows sorted (header first, BOM stripped, '\n' line ends): independent of row order."""
+    lines = path.read_bytes().decode("utf-8-sig").splitlines()
+    return hashlib.sha256(("\n".join([lines[0], *sorted(lines[1:])]) + "\n").encode()).hexdigest()
+
+
 def git_commit() -> str:
     try:
         out = subprocess.run(
@@ -75,9 +81,16 @@ def prepare(protocol: Protocol, root: Path = ROOT) -> Path:
     ds = protocol.dataset
     load_p, wx_p = root / ds.raw_load, root / ds.raw_weather
     h_load, h_wx = sha256(load_p), sha256(wx_p)
-    for name, got, want in [("load", h_load, ds.raw_load_sha256), ("weather", h_wx, ds.raw_weather_sha256)]:
-        if got != want:
-            raise RuntimeError(f"{name} SHA-256 differs from protocol.yaml: {got} != {want}. Tell the owner.")
+    if h_wx != ds.raw_weather_sha256:
+        raise RuntimeError(f"weather SHA-256 differs from protocol.yaml: {h_wx} != {ds.raw_weather_sha256}. Tell the owner.")
+    if h_load != ds.raw_load_sha256:
+        # Elia's export returns rows in an unstable order: accept the file if only the order differs.
+        h_content = content_sha256(load_p)
+        if h_content != ds.raw_load_content_sha256:
+            raise RuntimeError(f"load content differs from protocol.yaml (not only row order): content SHA-256 "
+                               f"{h_content} != {ds.raw_load_content_sha256}. Tell the owner.")
+        log.warning("load SHA-256 %s differs from protocol.yaml, but the row-order-independent content hash matches; "
+                    "accepted (rows are sorted by timestamp below)", h_load)
 
     raw = pd.read_csv(load_p, sep=";", encoding="utf-8-sig")
     raw["ts"] = pd.to_datetime(raw["Datetime"], utc=True)

@@ -22,6 +22,7 @@ class DatasetCfg(_Strict):
     manifest: str
     raw_load_sha256: str
     raw_weather_sha256: str
+    raw_load_content_sha256: str  # row-order-independent; excluded from run_id
     min_data_date: str
 
 

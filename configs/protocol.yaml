@@ -6,6 +6,9 @@ dataset:
   manifest: data/processed/manifest.json
   raw_load_sha256: e57db353662d0406ff5f75deccbb602b2bf104869e905cc0df0e5083a6f39188
   raw_weather_sha256: 73f6a63335b20eabcaef141c2fceaf83c860cf51e58571a69ba35709a27d7bfe
+  # Row-order-independent hash of load.csv (header + sorted data rows): Elia's export returns rows in an unstable
+  # order, so `bench prepare` also accepts a file with this content hash. Not part of run_id.
+  raw_load_content_sha256: e26073767daaa38919be8b8c38983490b1116ef7cbc3655a3e7a8c2ef56dba47
   min_data_date: "2024-01-01"      # Europe/Brussels; nothing earlier may be read
 timezone: Europe/Brussels
 freq_minutes: 15
