@@ -143,6 +143,10 @@ See [docs/adding_a_model.md](docs/adding_a_model.md).
 
 ## Limitations
 - Open-Meteo availability timing (see above); Elia may have revised historical data since the files were downloaded (2026-10-19).
+- **Information available to Elia vs the models.** Models read the historical load as published at download time
+  (2026-10-19). At 18:00 on each real day, Elia's forecasters only had the data available then. Elia can update measured
+  values after the fact; whether the 2025 values were revised is not known here. If they were, the models may have had
+  slightly cleaner history than Elia did.
 - Baselines (`last_value`, `daily_persistence`, `weekly_persistence`, `seasonal_moving_average`, `exp_weighted_seasonal`)
   use only quarter-hours observed before 18:00; exact definitions are in their cards.
 - Timestral with covariates is ~10x slower than univariate on CPU; this is the library's covariate path (see the cards).

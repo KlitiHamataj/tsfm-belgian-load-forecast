@@ -128,9 +128,10 @@
       2026-10-15, after the 2025 test year, and their real training data is not disclosed, so 2025 Elia data may have
       been seen in training. Chronos-2's weights date from 2025-10-30 and its disclosed training data lists no Belgian
       load.</p>
-    <p><strong>Data revisions.</strong> Models read Elia's revised historical load as context; at 18:00 on each real day
-      Elia's forecasters had only preliminary measurements and their own weather forecasts, which likely favours the
-      models slightly.</p>
+    <p><strong>Data revisions.</strong> Models read the historical load as published at download time (2026-10-19).
+      At 18:00 on each real day, Elia's forecasters only had the data available then. Elia can update measured values
+      after the fact; whether the 2025 values were revised is not known here. If they were, the models may have had
+      slightly cleaner history than Elia did.</p>
     <p>Data: Elia Open Data (ods001). Weather data by <a href="https://open-meteo.com/">Open-Meteo.com</a>
       (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).
       Code, protocol and full results: <a href="https://github.com/KlitiHamataj/tsfm-belgian-load-forecast#readme">github.com/KlitiHamataj/tsfm-belgian-load-forecast</a>.</p>
