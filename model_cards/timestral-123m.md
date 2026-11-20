@@ -7,7 +7,7 @@ weights_date: "2026-10-15"
 training_data_disclosed: false
 revision: 5a147287addda85f6acd8da3fb8858fe9af7e8f7
 params: ~123M
-color: "#2171b5"
+color: "#D55E00"
 ---
 
 ## What it is

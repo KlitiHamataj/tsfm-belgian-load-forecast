@@ -14,7 +14,7 @@ outputs: {type: quantiles, levels: [0.1, 0.5, 0.9]}
 device: [cpu]
 adapter: tsbench.models.baselines:EliaReferenceAdapter
 adapter_version: 1
-color: "#000000"
+color: "#555555"
 ignores_context_and_covariates: true
 needs_reference: true
 default_params: {}

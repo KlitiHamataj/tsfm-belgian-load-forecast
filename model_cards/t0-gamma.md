@@ -20,7 +20,7 @@ outputs:
 device: [cpu, cuda]
 adapter: tsbench.models.t0:T0Adapter
 adapter_version: 1
-color: "#7b3294"
+color: "#0072B2"
 default_params: {batch_size: 16, trim_leading_missing: true, symmetric_averaging: true, clip_nonnegative: true, snap_integers: true}
 ---
 

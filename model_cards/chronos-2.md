@@ -20,7 +20,7 @@ outputs:
 device: [cpu, cuda]
 adapter: tsbench.models.chronos2:Chronos2Adapter
 adapter_version: 1
-color: "#e6550d"
+color: "#009E73"
 default_params: {batch_size: 64}
 ---
 
