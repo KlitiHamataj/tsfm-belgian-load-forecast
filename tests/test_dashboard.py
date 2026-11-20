@@ -70,6 +70,7 @@ def test_default_view_is_the_rule_based_typical_week(data, daily):
     mon, sun, _ = typical_week(daily, defaults)
     assert (v["start"], v["end"]) == (mon, sun)
     assert pd.Timestamp(mon).dayofweek == 0 and pd.Timestamp(sun) - pd.Timestamp(mon) == pd.Timedelta(days=6)
+    assert v["day"] == (pd.Timestamp(mon) + pd.Timedelta(days=2)).strftime("%Y-%m-%d")  # Wednesday of that week
     i = daily["dates"].index(mon)
     assert not any(daily["is_holiday"][i:i + 7])
 

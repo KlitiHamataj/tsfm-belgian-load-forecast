@@ -166,7 +166,8 @@ def export_dashboard(protocol: Protocol, cfg: DashboardCfg | None = None) -> dic
 
     defaults = [s.model for s in cfg.series if s.default]
     mon, sun, score = typical_week(daily, defaults)
-    data["default_view"] = {"start": mon, "end": sun, "rule": "typical_week", "series": defaults,
+    wed = (pd.Timestamp(mon) + pd.Timedelta(days=2)).strftime("%Y-%m-%d")  # page opens on this day (Day view)
+    data["default_view"] = {"start": mon, "end": sun, "day": wed, "rule": "typical_week", "series": defaults,
                             "score_pp": round(score, 4)}
     log.info("typical week: %s to %s (sum |week - year| WAPE = %.3f pp over %s)", mon, sun, score, defaults)
 

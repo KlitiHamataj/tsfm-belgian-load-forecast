@@ -9,12 +9,12 @@
   /* Light is the default regardless of the system setting; the toggle switches data-theme. */
   :root, :root[data-theme="light"] {
     --bg: #ffffff; --surface: #ffffff; --panel: #f6f7f9; --text: #1b1d21; --muted: #5d6470; --border: #dfe2e7;
-    --grid: #eceef1; --actual: #8c8c8c; --accent: #2171b5; --sel: rgba(33, 113, 181, 0.10); --hol: #b0485a;
+    --grid: #eceef1; --actual: #000000; --accent: #2171b5; --sel: rgba(33, 113, 181, 0.10); --hol: #b0485a;
     color-scheme: light;
   }
   :root[data-theme="dark"] {
     --bg: #16181d; --surface: #16181d; --panel: #1f2228; --text: #e6e8eb; --muted: #a0a7b2; --border: #333842;
-    --grid: #2a2e36; --actual: #8c8c8c; --accent: #5aa0e0; --sel: rgba(90, 160, 224, 0.14); --hol: #e0798a;
+    --grid: #2a2e36; --actual: #f0f0f0; --accent: #5aa0e0; --sel: rgba(90, 160, 224, 0.14); --hol: #e0798a;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -33,7 +33,7 @@
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
   .series-ctl { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
   .swatch { width: 14px; height: 4px; border-radius: 2px; display: inline-block; flex: none; }
-  .swatch.actual { height: 6px; }
+  .swatch.actual { height: 5px; }
   .swatch.dash { height: 3px; background: none !important; border-top: 3px dashed var(--sw); border-radius: 0; }
   .series-ctl label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
   .band { color: var(--muted); font-size: 0.82rem; }
@@ -106,8 +106,9 @@
 
   <h2>15-minute load and forecasts</h2>
   <div id="detail" class="chart"><div id="status">Loading data…</div></div>
-  <p class="caption">Default view: the most typical week of 2025 (week WAPE closest to the full-year WAPE). Click any
-    day in the chart above to inspect it.</p>
+  <p class="caption">Default view: Wednesday of the most typical week of 2025 (week WAPE closest to the full-year
+    WAPE); use Week to see the whole week. Click any day in the chart above to inspect it. Lower panel: forecast minus
+    actual (above zero = over-forecast).</p>
 
   <h2>WAPE <span class="hint">· pooled over all quarter-hours; "Visible range" follows the zoom of the chart above</span></h2>
   <div class="readout"><table id="readout" aria-live="polite"></table></div>
@@ -138,17 +139,17 @@ const SHORT = { "New Year's Day": "New Year", "Easter Monday": "Easter Mon", "La
   "Ascension Day": "Ascension", "Pentecost Monday": "Whit Monday", "National Day": "National Day",
   "Assumption Day": "Assumption", "Armistice Day": "Armistice", "Christmas Day": "Christmas" };
 const NARROW = window.matchMedia("(max-width: 767px)");
-const state = { show: {}, band: {}, mode: "week", day: null, range: null };
-let D, Y, X, SRC, TZ, HOURLY, POS;
+const state = { show: {}, band: {}, mode: "day", day: null, range: null };
+let D, Y, X, SRC, TZ, POS;
 
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const dark = () => document.documentElement.dataset.theme === "dark";
 const narrow = () => NARROW.matches;
 const ids = () => Object.keys(D.series);
+const DARK_SWAP = { "#555555": "#a8a8a8" };  // dark-grey reference line would vanish on the dark surface
 function color(sid) {
-  const c = D.series[sid].color.toLowerCase();
-  if (c === "#000000") return dark() ? "#ededed" : "#1a1a1a";  // card black: near-black / near-white by theme
-  return D.series[sid].color;
+  const c = D.series[sid].color;
+  return dark() ? DARK_SWAP[c.toLowerCase()] || c : c;
 }
 function rgba(hex, a) {
   const n = parseInt(hex.slice(1), 16);
@@ -180,12 +181,6 @@ function buildTime() {
     if (loc <= prev) { X.push(X[X.length - 1]); SRC.push(-1); TZ.push(""); }
     POS[i] = X.length; X.push(x); SRC.push(i); TZ.push(off === 3600000 ? "CET" : "CEST");
     prev = loc;
-  }
-  // Hourly mean of the actual load (normal SVG trace) so the range slider shows the year's shape.
-  HOURLY = { x: [], y: [] };
-  for (let i = 0; i < D.n; i += 4) {
-    HOURLY.x.push(X[POS[i]]);
-    HOURLY.y.push((D.actual[i] + D.actual[i + 1] + D.actual[i + 2] + D.actual[i + 3]) / 4);
   }
 }
 const mapY = (arr) => SRC.map((i) => (i < 0 ? null : arr[i]));
@@ -231,11 +226,15 @@ function baseLayout() {
 const CONFIG = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"] };
 
 function drawYear() {
-  const traces = Y.series.filter((s) => state.show[s]).map((s) => ({
-    type: "scatter", mode: narrow() ? "lines" : "lines+markers", name: label(s), x: Y.dates, y: Y.wape[s],
-    line: { color: color(s), width: narrow() ? 1.2 : 1.5, dash: dash(s) }, marker: { color: color(s), size: 4 },
-    hovertemplate: `${label(s)}: %{y:.2f}%<extra></extra>`,
-  }));
+  // Per series: daily WAPE as faint dots, and a centred 7-day mean of the daily values as the line.
+  const traces = [];
+  for (const s of Y.series.filter((x) => state.show[x])) {
+    traces.push({ type: "scatter", mode: "markers", x: Y.dates, y: Y.wape[s], hoverinfo: "skip", showlegend: false,
+      marker: { color: color(s), size: narrow() ? 2.5 : 3.5, opacity: 0.3 } });
+    traces.push({ type: "scatter", mode: "lines", name: label(s), x: Y.dates, y: rolling(Y.wape[s], 7),
+      customdata: Y.wape[s], line: { color: color(s), width: 2, dash: dash(s) },
+      hovertemplate: `${label(s)}: 7-day %{y:.2f}% · day %{customdata:.2f}%<extra></extra>` });
+  }
   // Holiday markers on the x axis; their names show in the hover (the only labels on narrow screens).
   const hx = [], hn = [];
   Y.dates.forEach((d, i) => { if (Y.is_holiday[i]) { hx.push(d); hn.push(Y.holiday_name[i] || "Public holiday"); } });
@@ -266,6 +265,27 @@ function drawYear() {
   return Plotly.react("year", traces, layout, { ...CONFIG, displayModeBar: false });
 }
 
+function rolling(v, w) {
+  const h = Math.floor(w / 2);
+  return v.map((_, i) => {
+    let sum = 0, n = 0;
+    for (let j = Math.max(0, i - h); j <= Math.min(v.length - 1, i + h); j++) { sum += v[j]; n++; }
+    return sum / n;
+  });
+}
+
+// Visible error range (P50 - actual), symmetric around zero.
+function errRange(lo, hi) {
+  let m = 0;
+  for (let k = 0; k < X.length; k++) {
+    const i = SRC[k];
+    if (i < 0 || X[k] < lo || X[k] >= hi) continue;
+    for (const s of ids()) if (state.show[s]) m = Math.max(m, Math.abs(D.series[s].P50[i] - D.actual[i]));
+  }
+  const r = (m || 100) * 1.1;
+  return [-r, r];
+}
+
 // y range of everything drawn inside [lo, hi), padded, so the axis fits the visible window.
 function yRange(lo, hi) {
   let mn = Infinity, mx = -Infinity;
@@ -288,35 +308,42 @@ function yRange(lo, hi) {
 function drawDetail() {
   const tr = [];
   const range = currentRange();
+  const lo = range[0].slice(0, 16), hi = range[1].slice(0, 16);
   for (const s of ids()) {
     if (!state.show[s] || !state.band[s]) continue;
     const c = color(s), bd = bandData(s, range[0], range[1]);
     tr.push({ type: "scatter", mode: "lines", x: bd.x, y: bd.y90, line: { width: 0, color: c },
       hoverinfo: "skip", showlegend: false, legendgroup: s });
     tr.push({ type: "scatter", mode: "lines", x: bd.x, y: bd.y10, line: { width: 0, color: c },
-      fill: "tonexty", fillcolor: rgba(c, dark() ? 0.24 : 0.17), name: `${label(s)} P10-P90`, hoverinfo: "skip",
+      fill: "tonexty", fillcolor: rgba(c, dark() ? 0.24 : 0.15), name: `${label(s)} P10-P90`, hoverinfo: "skip",
       showlegend: false, legendgroup: s });
   }
-  // Year shape for the range slider only: on a hidden second y axis whose range keeps it out of the main plot.
-  tr.push({ type: "scatter", mode: "lines", x: HOURLY.x, y: HOURLY.y, yaxis: "y2", line: { color: css("--actual"), width: 1 },
-    hoverinfo: "skip", showlegend: false });
   tr.push({ type: "scattergl", mode: "lines", name: "Actual load", x: X, y: mapY(D.actual), text: TZ,
-    line: { color: css("--actual"), width: 3.5 }, hovertemplate: "Actual: %{y:,} MW (%{text})<extra></extra>" });
+    line: { color: css("--actual"), width: 2.5 }, hovertemplate: "Actual: %{y:,} MW (%{text})<extra></extra>" });
   for (const s of ids()) {
     if (!state.show[s]) continue;
     tr.push({ type: "scattergl", mode: "lines", name: label(s), x: X, y: mapY(D.series[s].P50), legendgroup: s,
-      line: { color: color(s), width: D.series[s].dash ? 2 : 1.7, dash: dash(s) },
-      hovertemplate: `${label(s)}: %{y:,} MW<extra></extra>` });
+      line: { color: color(s), width: 2, dash: dash(s) }, hovertemplate: `${label(s)}: %{y:,} MW<extra></extra>` });
+  }
+  // Error panel: P50 - actual on a second y axis sharing the x axis (zoom is linked by construction).
+  for (const s of ids()) {
+    if (!state.show[s]) continue;
+    const P50 = D.series[s].P50;
+    tr.push({ type: "scattergl", mode: "lines", name: label(s), x: X, yaxis: "y2", legendgroup: s, showlegend: false,
+      y: SRC.map((i) => (i < 0 ? null : P50[i] - D.actual[i])), line: { color: color(s), width: 2, dash: dash(s) },
+      hovertemplate: `${label(s)} error: %{y:+,} MW<extra></extra>` });
   }
   const n = narrow();
-  const layout = { ...baseLayout(), margin: { l: n ? 40 : 56, r: 10, t: n ? 6 : 10, b: 10 }, hovermode: "x unified",
+  const panel = (text, y) => ({ text, xref: "paper", yref: "paper", x: 0, y, xanchor: "left", yanchor: "top",
+    showarrow: false, font: { size: n ? 11 : 12, color: css("--muted") }, bgcolor: css("--surface"), borderpad: 2 });
+  const layout = { ...baseLayout(), margin: { l: n ? 44 : 60, r: 10, t: n ? 6 : 10, b: n ? 34 : 40 },
+    hovermode: "x unified",
     showlegend: !n, legend: { orientation: "h", x: 0, y: 1.02, yanchor: "bottom", font: { size: 13 } },
-    xaxis: { ...axisStyle(), type: "date", range, hoverformat: "%a %d %b %Y %H:%M",
-      rangeslider: { visible: true, thickness: n ? 0.07 : 0.09, bgcolor: css("--panel"), bordercolor: css("--border"),
-        yaxis2: { rangemode: "auto" } } },
-    yaxis2: { overlaying: "y", visible: false, fixedrange: true, range: [1e9, 1e9 + 1] },
-    yaxis: { ...axisStyle(), title: { text: n ? "" : "load (MW)", font: { color: css("--muted"), size: 12 } },
-      range: yRange(range[0].slice(0, 16), range[1].slice(0, 16)), tickformat: n ? "~s" : ",d" } };
+    xaxis: { ...axisStyle(), type: "date", range, anchor: "y2", hoverformat: "%a %d %b %Y %H:%M" },
+    yaxis: { ...axisStyle(), domain: [0.43, 1], range: yRange(lo, hi), tickformat: n ? "~s" : ",d" },
+    yaxis2: { ...axisStyle(), domain: [0, 0.37], range: errRange(lo, hi), tickformat: n ? "+~s" : "+,d",
+      zeroline: true, zerolinecolor: css("--muted"), zerolinewidth: 1.2 },
+    annotations: [panel("Load (MW)", 1), panel("Forecast − actual (MW)", 0.37)] };
   return Plotly.react("detail", tr, layout, CONFIG);
 }
 
@@ -408,8 +435,8 @@ async function main() {
   }
   document.getElementById("detail").innerHTML = "";
   buildTime();
-  state.day = D.default_view.start;
-  state.mode = "week";
+  state.day = D.default_view.day;
+  state.mode = "day";
   buildControls();
   await redraw();
 
