@@ -1,13 +1,15 @@
 # Series exported by `bench export-dashboard` to docs/dashboard/ (data.json, daily.json).
 # Each entry is one run cell under outputs/runs/<model>/<covariates>/ctxNNd (baselines: covariates "default", no
-# context). Colours come from the model cards. The first entry is drawn first; edit this list to change the dashboard.
+# context). Colours come from the model cards. Labels default to "<card display_name> (<N> days)" plus " †" when the
+# card's contamination flag applies; `label` overrides that, `short` is used on narrow screens.
 series:
-  - {model: timestral-123m, covariates: full, context_days: 75}
-  - {model: t0-gamma, covariates: full, context_days: 75}
-  - {model: chronos-2, covariates: full, context_days: 60}
-  - {model: elia_reference, covariates: default}
+  - {model: timestral-123m, covariates: full, context_days: 75, short: Timestral 123M, default: true}
+  - {model: t0-gamma, covariates: full, context_days: 75, short: t0-gamma}
+  - {model: chronos-2, covariates: full, context_days: 60, short: Chronos-2}
+  - {model: elia_reference, covariates: default, label: Elia operational forecast (reference), short: Elia, default: true}
 quantiles: [P10, P50, P90]
-default_view: {start: "2025-11-10", end: "2025-11-16"}   # local dates, inclusive
+# Default view = the Monday-Sunday week of the scored year with no public holiday whose WAPE is closest to the
+# full-year WAPE, summed over the `default: true` series (minimum sum of absolute differences).
 check_against: results/leaderboard/results_wide.csv        # full-year WAPE must match to `tolerance_pp`
 tolerance_pp: 0.01
 out_dir: docs/dashboard

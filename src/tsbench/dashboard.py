@@ -32,6 +32,9 @@ class SeriesRef(BaseModel):
     model: str
     covariates: str
     context_days: int | None = None
+    label: str | None = None
+    short: str
+    default: bool = False
 
     @property
     def cell(self) -> Cell:
@@ -42,7 +45,6 @@ class DashboardCfg(BaseModel):
     model_config = ConfigDict(extra="forbid")
     series: list[SeriesRef]
     quantiles: list[str]
-    default_view: dict[str, str]
     check_against: str
     tolerance_pp: float
     out_dir: str
@@ -67,6 +69,26 @@ def daily_table(local_dates: pd.Series, actual: np.ndarray, p50: dict[str, np.nd
         out[f"sum_abs_err:{sid}"] = g[f"err:{sid}"].sum()
         out[f"wape:{sid}"] = out[f"sum_abs_err:{sid}"] / out["sum_actual"] * 100
     return out.reset_index()
+
+
+def typical_week(daily: dict, series: list[str]) -> tuple[str, str, float]:
+    """Monday-Sunday week (fully inside the data, no public holiday) whose pooled WAPE is closest to the full-year
+    WAPE, summed over `series`. Returns (monday, sunday, score in pp); ties go to the earliest week."""
+    dates = pd.to_datetime(pd.Series(daily["dates"]))
+    act = np.asarray(daily["sum_actual"])
+    err = {s: np.asarray(daily["sum_abs_err"][s]) for s in series}
+    full = {s: err[s].sum() / act.sum() * 100 for s in series}
+    hol = np.asarray(daily["is_holiday"], bool)
+    best: tuple[float, int] | None = None
+    for i in np.flatnonzero(dates.dt.dayofweek.to_numpy() == 0):
+        if i + 7 > len(dates) or (dates[i + 6] - dates[i]).days != 6 or hol[i:i + 7].any():
+            continue
+        score = sum(abs(err[s][i:i + 7].sum() / act[i:i + 7].sum() * 100 - full[s]) for s in series)
+        if best is None or score < best[0] - 1e-12:
+            best = (float(score), int(i))
+    if best is None:
+        raise ValueError("no holiday-free Monday-Sunday week in the data")
+    return daily["dates"][best[1]], daily["dates"][best[1] + 6], best[0]
 
 
 def _load_scored(cell: Cell, quantiles: list[str]) -> pd.DataFrame:
@@ -113,15 +135,17 @@ def export_dashboard(protocol: Protocol, cfg: DashboardCfg | None = None) -> dic
         card, d = cards[s.model], frames[s.model]
         q = {k: np.rint(d[k].to_numpy()).astype(int) for k in cfg.quantiles}
         p50[s.model] = q["P50"]
+        flag = _caveat(card, protocol)
+        label = s.label or f"{card.display_name} ({s.context_days} days)"
         series[s.model] = {
-            "label": card.display_name, "cell": s.cell.label, "color": card.color,
-            "contamination_caveat": _caveat(card, protocol), **{k: v.tolist() for k, v in q.items()},
+            "label": label + (" †" if flag else ""), "short": s.short + (" †" if flag else ""),
+            "cell": s.cell.label, "color": card.color, "default": s.default, "contamination_caveat": flag,
+            **{k: v.tolist() for k, v in q.items()},
         }
     local = ts.dt.tz_convert(protocol.timezone)
     data = {
         "start_utc": ts.iloc[0].strftime("%Y-%m-%dT%H:%M:%SZ"), "step_min": protocol.freq_minutes, "n": len(ts),
-        "timezone": protocol.timezone, "unit": "MW", "default_view": cfg.default_view,
-        "actual": act_i.tolist(), "series": series,
+        "timezone": protocol.timezone, "unit": "MW", "actual": act_i.tolist(), "series": series,
     }
 
     day = daily_table(local.dt.strftime("%Y-%m-%d"), act_i.astype(float), {k: v.astype(float) for k, v in p50.items()})
@@ -138,6 +162,12 @@ def export_dashboard(protocol: Protocol, cfg: DashboardCfg | None = None) -> dic
         "sum_abs_err": {k: day[f"sum_abs_err:{k}"].round(1).tolist() for k in p50},
         "wape": {k: day[f"wape:{k}"].round(3).tolist() for k in p50},
     }
+
+    defaults = [s.model for s in cfg.series if s.default]
+    mon, sun, score = typical_week(daily, defaults)
+    data["default_view"] = {"start": mon, "end": sun, "rule": "typical_week", "series": defaults,
+                            "score_pp": round(score, 4)}
+    log.info("typical week: %s to %s (sum |week - year| WAPE = %.3f pp over %s)", mon, sun, score, defaults)
 
     checks = {}
     for s in cfg.series:

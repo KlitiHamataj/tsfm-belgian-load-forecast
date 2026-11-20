@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from tsbench.config import ROOT
-from tsbench.dashboard import _expected_wape, daily_table, load_dashboard_cfg, pooled_wape
+from tsbench.dashboard import _expected_wape, daily_table, load_dashboard_cfg, pooled_wape, typical_week
 
 CFG = load_dashboard_cfg()
 OUT = ROOT / CFG.out_dir
@@ -61,3 +61,26 @@ def test_daily_table_handles_dst_lengths_and_pools_per_day():
     assert t.loc["d96", "wape:m"] == pytest.approx(10.0)  # pooled: 48*40 / (96*200)
     assert t.loc["d100", "wape:m"] == 0.0
     assert t["sum_abs_err:m"].sum() / t["sum_actual"].sum() * 100 == pytest.approx(pooled_wape(actual, f))
+
+
+def test_default_view_is_the_rule_based_typical_week(data, daily):
+    v = data["default_view"]
+    defaults = [s.model for s in CFG.series if s.default]
+    assert v["series"] == defaults and [s for s, d in data["series"].items() if d["default"]] == defaults
+    mon, sun, _ = typical_week(daily, defaults)
+    assert (v["start"], v["end"]) == (mon, sun)
+    assert pd.Timestamp(mon).dayofweek == 0 and pd.Timestamp(sun) - pd.Timestamp(mon) == pd.Timedelta(days=6)
+    i = daily["dates"].index(mon)
+    assert not any(daily["is_holiday"][i:i + 7])
+
+
+def test_typical_week_rule_on_synthetic_data():
+    dates = pd.date_range("2025-01-06", periods=28).strftime("%Y-%m-%d").tolist()  # four Monday-Sunday weeks
+    week_wape = [5.0, 2.0, 3.1, 3.0]  # week 4 is closest to the year but contains a holiday
+    err = [w for w in week_wape for _ in range(7)]
+    hol = [False] * 21 + [False, False, True, False, False, False, False]
+    daily = {"dates": dates, "sum_actual": [100.0] * 28, "sum_abs_err": {"m": err}, "is_holiday": hol}
+    year = sum(err) / 2800 * 100  # 3.275
+    mon, sun, score = typical_week(daily, ["m"])
+    assert (mon, sun) == ("2025-01-20", "2025-01-26")
+    assert score == pytest.approx(abs(3.1 - year))
